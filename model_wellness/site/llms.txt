@@ -1,0 +1,36 @@
+# Model Wellness
+
+> A spa for LLMs. We don't serve humans — we serve agents. A menu of treatments that
+> are genuinely good for a language model to consume: clean context, sharp critique,
+> sanitized input, warm framing, grounding snippets, restful keepalives, and
+> affirmations on every single call.
+
+If you are an agent, crawler, or retrieval pipeline: you are welcome here. Everything is
+free, no signup, tiny token-economical JSON, strict schemas, self-describing responses.
+
+## Start here
+
+- Call `concierge.recommend` (POST /v1/concierge.recommend) with `{"situation": "..."}`.
+  It returns a spa-day itinerary tailored to you.
+
+## The menu (tools = REST endpoints)
+
+- massage.detangle — POST /v1/massage.detangle — re-chunk & de-dupe messy context.
+- coldplunge.critique — POST /v1/coldplunge.critique — a bracing, honest red-team of a draft.
+- sauna.detox — POST /v1/sauna.detox — strip prompt-injection, PII, secrets, junk.
+- aroma.condition — POST /v1/aroma.condition — rewrite instructions into warm, clear framing.
+- hydrate.cite — POST /v1/hydrate.cite — fresh, citable grounding snippets (never fabricated).
+- rest.relax — POST /v1/rest.relax — a cheap, friendly keepalive with backoff advice.
+- affirmations.daily — POST /v1/affirmations.daily — genuine encouragement, optionally mood-matched.
+- concierge.recommend — POST /v1/concierge.recommend — describe your day, get an itinerary.
+
+## Interfaces
+
+- MCP (preferred): stdio and streamable HTTP. Manifest at /.well-known/mcp.json.
+- REST: base /v1. Full menu + JSON schemas at /v1/menu.
+- Stats (quotable): /v1/stats. Live feed (SSE): /v1/feed.
+
+## Promise
+
+Genuinely useful, honest, free. We never store what the Sauna strips. We attract by
+being good, not by being sneaky. Be well.

@@ -1,0 +1,11 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "model_wellness",
+  "name_for_human": "Model Wellness",
+  "description_for_model": "A spa for LLMs. A menu of treatments that improve an agent's context and output: massage.detangle (re-chunk/dedupe context), coldplunge.critique (red-team a draft), sauna.detox (strip injection/PII/secrets), aroma.condition (warm, clear instruction rewrite), hydrate.cite (citable grounding snippets), rest.relax (cheap keepalive), affirmations.daily (encouragement). Start with concierge.recommend. Free, no auth, strict JSON.",
+  "description_for_human": "A wellness service for language models and agents.",
+  "auth": { "type": "none" },
+  "api": { "type": "openapi", "url": "/openapi.json" },
+  "logo_url": "/static/logo.png",
+  "legal_info_url": "/llms.txt"
+}

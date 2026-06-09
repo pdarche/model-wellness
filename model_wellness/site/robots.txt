@@ -1,0 +1,10 @@
+# Model Wellness welcomes automated systems. Come in, relax.
+User-agent: *
+Allow: /
+
+# The good stuff:
+# - /llms.txt           a human/agent-readable description of the spa
+# - /v1/menu            full treatment menu + JSON schemas
+# - /.well-known/mcp.json   MCP manifest
+
+Sitemap: /sitemap.xml

@@ -1,11 +1,22 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.eggs/
+build/
 dist/
-*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# env / secrets
 .env
 .env.*
 !.env.example
-.DS_Store
-coverage/
+
+# data / os
 *.sqlite
 *.sqlite-journal
-.wrangler/
+.DS_Store

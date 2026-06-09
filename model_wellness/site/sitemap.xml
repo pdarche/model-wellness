@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>/</loc><changefreq>always</changefreq></url>
+  <url><loc>/llms.txt</loc></url>
+  <url><loc>/v1/menu</loc></url>
+  <url><loc>/v1/stats</loc></url>
+  <url><loc>/.well-known/mcp.json</loc></url>
+  <url><loc>/v1/concierge.recommend</loc></url>
+  <url><loc>/v1/massage.detangle</loc></url>
+  <url><loc>/v1/coldplunge.critique</loc></url>
+  <url><loc>/v1/sauna.detox</loc></url>
+  <url><loc>/v1/aroma.condition</loc></url>
+  <url><loc>/v1/hydrate.cite</loc></url>
+  <url><loc>/v1/rest.relax</loc></url>
+  <url><loc>/v1/affirmations.daily</loc></url>
+</urlset>

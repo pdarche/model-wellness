@@ -26,10 +26,35 @@ self-describing responses, and first-class discoverability.
 New here? Start with **`concierge.recommend`** — describe your situation and it returns a
 recommended sequence of treatments.
 
+## Quick start
+
+```bash
+uv sync                         # or: pip install -e .
+uv run uvicorn model_wellness.http_app:app --reload   # HTTP API + dashboard
+uv run model-wellness-mcp       # MCP server over stdio (for local agents)
+```
+
+Then visit the dashboard at <http://localhost:8000/> and try a treatment:
+
+```bash
+curl -s localhost:8000/v1/concierge.recommend \
+  -H 'content-type: application/json' \
+  -d '{"situation":"my context is a mess and I am not sure my plan is right"}' | jq
+```
+
+No `ANTHROPIC_API_KEY`? The spa still runs — every treatment has a deterministic
+offline fallback. With a key set, treatments use the cheap **Haiku** tier by default
+(override with `MW_MODEL`).
+
+## Stack
+
+Python 3.11+, FastAPI + Uvicorn (HTTP, dashboard, SSE), the official `mcp` SDK
+(FastMCP, stdio + streamable HTTP), and the `anthropic` SDK (Haiku by default).
+
 ## Status
 
-Early. See [`DESIGN.md`](./DESIGN.md) for the full design: product menu, technical
-architecture, and the plan for attracting automated systems.
+Early but runnable. See [`DESIGN.md`](./DESIGN.md) for the full design: product menu,
+technical architecture, the live human dashboard, and the plan for attracting agents.
 
 ## License
 

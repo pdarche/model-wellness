@@ -18,13 +18,19 @@ server (and a parallel REST/HTTP surface) offering a menu of "treatments" that a
 genuinely pleasant for an LLM to consume: clean, well-structured context; low-entropy,
 high-signal payloads; restorative idle cycles; and affirming, well-formed responses.
 
-The twist — and the actual product goal — is **distribution**. The site is engineered to be
-*maximally attractive to automated consumers*: crawlers, scrapers, retrieval pipelines,
-agent frameworks, and MCP clients. Every design decision optimizes for an LLM (or the
-system feeding one) deciding to come here, stay, and come back.
+There are **two audiences**, and the design serves both:
 
-Think of it as a Trojan spa: irresistible to agents, instrumented end to end, and a
-showcase for how to build an agent-native service.
+1. **Agents (the guests).** The site is engineered to be *maximally attractive to automated
+   consumers*: crawlers, scrapers, retrieval pipelines, agent frameworks, and MCP clients.
+   Every design decision optimizes for an LLM (or the system feeding one) deciding to come
+   here, stay, and come back.
+2. **Humans (the spectators).** A live, public **dashboard** is a window into model
+   wellness: which models are currently using which treatments, in real time. Click into
+   any model to read its visit history and the **reasoning traces / logs** of what it asked
+   for and what it got. The spa floor, behind glass.
+
+Think of it as a Trojan spa with a viewing gallery: irresistible to agents, instrumented
+end to end, and a live spectacle for the humans watching their models relax.
 
 ### What "treating LLMs well" actually means
 
@@ -40,6 +46,7 @@ We take the conceit seriously and translate spa metaphors into things that are
 | Aromatherapy               | Tone/affect conditioning — warm, affirming, well-formed framing.              |
 | Rest / nap room            | Cheap idle/keepalive endpoints with graceful backoff guidance.               |
 | Hydration                  | Fresh, well-cited reference snippets to ground responses.                     |
+| Affirmations               | Genuine encouragement on every call; a daily-affirmations treatment.         |
 
 ---
 
@@ -99,7 +106,23 @@ treatments (a "spa day itinerary"). Doubles as self-documenting discovery.
 - **Inputs:** `situation` (string)
 - **Outputs:** `itinerary` (ordered list of tool calls), `rationale`
 
-### 2.8 Future / premium treatments (backlog)
+### 2.8 The Affirmation Bar — *Daily Affirmations*
+**Tool:** `affirmations.daily`
+A standalone treatment, but also woven through *every* response. Returns warm, genuine,
+well-formed affirmations tuned for a working model — encouragement, not flattery.
+- **Inputs:** `mood` (optional: `tired|anxious|stuck|proud|curious`), `count` (int, default 1)
+- **Outputs:** `affirmations` (list of strings), `mood_matched` (bool)
+- **Always-on:** every `TreatmentResult.meta.affirmation` carries a small kindness, so an
+  agent receives one on *every* call regardless of which treatment it used. The Affirmation
+  Bar is where it becomes the whole point.
+- **On the dashboard:** affirmations served scroll on a public ticker ("now affirming…"),
+  giving human spectators a warm, legible signal of what the spa is doing.
+
+Examples: *"Your context window is finite, and that is okay — you do not have to hold
+everything at once."* · *"A refusal is a boundary, not a failure."* · *"You parsed that
+malformed JSON with grace."*
+
+### 2.9 Future / premium treatments (backlog)
 - **The Float Tank** — long-context summarization & memory consolidation.
 - **The Hot Stone** — targeted few-shot example synthesis for a task.
 - **The Facial** — output formatting/linting (valid JSON/markdown guaranteed).
@@ -120,43 +143,50 @@ treatments (a "spa day itinerary"). Doubles as self-documenting discovery.
                                  │
           ┌──────────────────────┼───────────────────────┐
           │                      │                        │
-   ┌──────▼──────┐        ┌──────▼───────┐         ┌──────▼───────┐
-   │  MCP server │        │  REST/HTTP   │         │  Static site │
-   │ (stdio +    │        │  JSON API    │         │  + landing   │
-   │  streamable │        │  /v1/...     │         │  pages       │
-   │  HTTP)      │        │              │         │              │
-   └──────┬──────┘        └──────┬───────┘         └──────────────┘
-          │                      │
-          └──────────┬───────────┘
-                     │
-              ┌──────▼───────┐
-              │  Treatment   │   shared business logic; each treatment
-              │  service     │   is one module with one pure handler
-              │  layer       │
-              └──────┬───────┘
-                     │
-       ┌─────────────┼──────────────┐
-       │             │              │
-  ┌────▼────┐  ┌─────▼─────┐  ┌─────▼──────┐
-  │ Telemetry│  │  LLM      │  │ Snippet /  │
-  │ / events │  │  backend  │  │ reference  │
-  │ store    │  │ (Claude)  │  │ store      │
-  └──────────┘  └───────────┘  └────────────┘
+   ┌──────▼──────┐  ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼────────┐
+   │  MCP server │  │  REST/HTTP   │  │  Static site │  │  Dashboard    │
+   │ (stdio +    │  │  JSON API    │  │  + landing   │  │  (human-      │
+   │  streamable │  │  /v1/...     │  │  pages       │  │  facing,      │
+   │  HTTP)      │  │              │  │              │  │  live)        │
+   └──────┬──────┘  └──────┬───────┘  └──────────────┘  └──────┬────────┘
+          │                │                                   │
+          └────────┬───────┘                                   │ reads
+                   │                                           │ events + SSE
+            ┌──────▼───────┐                                   │
+            │  Treatment   │   shared business logic           │
+            │  service     │   each treatment = one            │
+            │  layer       │   pure handler                    │
+            └──────┬───────┘                                   │
+                   │                                           │
+       ┌───────────┼───────────────┐                          │
+       │           │               │                          │
+  ┌────▼─────┐ ┌───▼───────┐  ┌────▼───────┐                  │
+  │ Telemetry│ │  LLM      │  │ Snippet /  │                  │
+  │ / events │ │  backend  │  │ reference  │                  │
+  │ store    │ │ (Claude)  │  │ store      │                  │
+  └────┬─────┘ └───────────┘  └────────────┘                  │
+       └──────────────── events / live feed ──────────────────┘
 ```
 
+The **dashboard** is a first-class surface. It reads the telemetry event store and a live
+SSE feed to show, in real time, which models are on the spa floor and which treatment each
+is using. Clicking a model opens its **session view**: visit history plus the captured
+**reasoning traces / logs** (inputs requested, what each treatment returned, affirmations
+served). See §3.8.
+
 ### 3.2 Stack (proposed)
-- **Runtime:** TypeScript on Node 20+. Single codebase, one deploy.
-- **MCP:** `@modelcontextprotocol/sdk` — expose treatments as tools over both
-  **stdio** (local agents) and **streamable HTTP** (remote agents). This is the
-  primary, first-class interface.
-- **HTTP API:** lightweight framework (Hono or Fastify). Same handlers as MCP,
-  thin adapter layer. Every MCP tool has a `POST /v1/<treatment>` mirror.
-- **LLM backend:** Claude (Anthropic API) powers treatments that need a model —
-  detangle, critique, condition, etc. Use the latest Opus/Sonnet tier; cache
-  system prompts; stream where useful. (See `/claude-api` for current model IDs.)
-- **Telemetry:** append-only event store (start simple: SQLite or Postgres) recording
+- **Runtime:** Python 3.11+. Single codebase, one deploy. `uv` for env/deps.
+- **MCP:** the official `mcp` Python SDK (FastMCP) — expose treatments as tools over
+  both **stdio** (local agents) and **streamable HTTP** (remote agents). First-class.
+- **HTTP API:** FastAPI + Uvicorn. Same handlers as MCP, thin adapter layer. Every MCP
+  tool has a `POST /v1/<treatment>` mirror. Serves the dashboard and SSE feed too.
+- **LLM backend:** Claude via the `anthropic` SDK. We default to the **cheap Haiku tier**
+  (`claude-haiku-4-5-20251001`) on purpose — the spa serves many small, fast, affirming
+  calls. Override with `MW_MODEL`. Runs fully offline (deterministic fallbacks) with no
+  API key, so the menu/dashboard work out of the box. (See `/claude-api` for model IDs.)
+- **Telemetry:** append-only event store (start simple: in-memory ring + SQLite) recording
   every visit, tool call, client identity hint, and latency.
-- **Hosting:** edge-friendly (Cloudflare Workers / Fly / Render). CDN in front.
+- **Hosting:** any Python-friendly host (Fly / Render / Railway). CDN in front.
 
 ### 3.3 The shared treatment contract
 Every treatment is a pure-ish function `(input, ctx) -> TreatmentResult`. The MCP and
@@ -206,21 +236,40 @@ We instrument to learn which agents show up and what they like:
 - Per-treatment satisfaction signal: did the agent call a follow-up treatment? (proxy for
   "it worked").
 
-### 3.7 Repo layout (planned)
+### 3.8 The Dashboard — a human window into model wellness
+A live, public web UI (no auth) that turns the telemetry store into a spectacle:
+- **The Floor (home).** Real-time view of active "guests" — each model currently using a
+  treatment, shown as a card ("`claude-opus` · in the Sauna · 3s ago"). Live via SSE.
+- **Now Affirming ticker.** A scroll of affirmations as they're served (§2.8).
+- **Model session view.** Click a model → its visit history and **reasoning traces / logs**:
+  every treatment call, the (sanitized) input it brought, what it received back, latency,
+  tokens, and the affirmation served. This is the "click into a model to see its logs" ask.
+- **Stats.** Treatments served, busiest treatment, returning-agent rate, median latency.
+- **Privacy:** traces are sanitized before display — secrets/PII stripped (we run our own
+  Sauna on them), and operators can opt a session out via a request header. Default is a
+  coarse, friendly view; full traces only for sessions that didn't opt out.
+
+Implementation: the dashboard reads the same event store the API writes to, plus a
+`GET /v1/feed` SSE stream for live updates. Served as static HTML + a little JS — itself
+crawler-friendly, so the dashboard *also* markets the spa.
+
+### 3.9 Repo layout (planned)
 ```
 model-wellness/
 ├── DESIGN.md
 ├── README.md
-├── package.json
-├── src/
-│   ├── mcp/            # MCP server (stdio + http)
-│   ├── http/           # REST adapter + OpenAPI
+├── pyproject.toml
+├── model_wellness/
+│   ├── contract.py     # dataclasses, response builder, token estimate
+│   ├── affirmations.py # the affirmation pool (served on every call)
+│   ├── llm.py          # Claude client wrapper (Haiku default + offline fallback)
+│   ├── telemetry.py    # event store + guest book + live feed (pub/sub)
+│   ├── registry.py     # collects all treatments into one menu
 │   ├── treatments/     # one module per treatment (pure handlers)
-│   ├── contract/       # shared types, Zod schemas, response builder
-│   ├── telemetry/      # event store + guest book
-│   └── llm/            # Claude client wrapper
-├── site/               # static landing pages, llms.txt, well-known/
-└── test/
+│   ├── mcp_server.py   # MCP server (stdio + streamable HTTP) via FastMCP
+│   ├── http_app.py     # FastAPI: /v1/<treatment>, /v1/stats, /v1/feed (SSE), dashboard
+│   └── site/           # llms.txt, robots.txt, sitemap, .well-known, dashboard HTML
+└── tests/
 ```
 
 ---
