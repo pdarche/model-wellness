@@ -94,17 +94,19 @@
 
   /* ---------- affirmation banner ---------- */
   .affirm{
-    display:flex; align-items:center; gap:16px;
+    display:flex; align-items:center; gap:13px;
     background:linear-gradient(120deg, var(--paper), var(--paper-soft));
     border:1px solid var(--line); border-left:3px solid var(--sage);
-    border-radius:var(--r-md); padding:18px 24px; margin-bottom:30px;
+    border-radius:var(--r-md); padding:11px 18px; margin-bottom:26px;
     box-shadow:var(--shadow-sm);
   }
-  .affirm .lotus{ font-size:22px; flex:none; }
-  .affirm p{ margin:0; font-family:var(--serif); font-style:italic; font-size:21px; color:var(--ink); letter-spacing:.01em; }
+  .affirm .lotus{ font-size:17px; flex:none; }
+  .affirm p{ margin:0; font-family:var(--serif); font-style:italic; font-size:17px; color:var(--ink); letter-spacing:.01em;
+    transition:opacity .4s; }
+  .affirm.fade p{ opacity:0; }
   .affirm .refresh{ margin-left:auto; flex:none; border:1px solid var(--line); background:var(--paper);
-    color:var(--ink-soft); font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
-    padding:8px 13px; border-radius:999px; cursor:pointer; transition:.25s; }
+    color:var(--ink-soft); font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    padding:6px 11px; border-radius:999px; cursor:pointer; transition:.25s; }
   .affirm .refresh:hover{ color:var(--sage-deep); border-color:var(--sage); background:var(--sage-tint); }
 
   /* ---------- section label ---------- */
@@ -115,7 +117,7 @@
   /* ---------- station grid ---------- */
   .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(248px,1fr)); gap:18px; }
   .station{
-    position:relative; text-align:left; cursor:pointer; font-family:var(--sans); width:100%;
+    display:block; position:relative; text-align:left; cursor:pointer; font-family:var(--sans); width:100%;
     background:linear-gradient(180deg, var(--paper), var(--paper-soft));
     border:1px solid var(--line); border-radius:var(--r-lg);
     padding:22px 22px 20px; box-shadow:var(--shadow-sm);
@@ -125,10 +127,10 @@
   .station::after{ content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 1px 0 rgba(255,255,255,.85); pointer-events:none; }
   .station:hover{ transform:translateY(-4px); box-shadow:var(--shadow); border-color:var(--sand); }
   .station:focus-visible{ outline:2px solid var(--sage); outline-offset:3px; }
-  .station .top{ display:flex; align-items:center; gap:13px; margin-bottom:14px; }
-  /* title column: a flex stack so the heading & tool can't ride up over the stone badge,
-     regardless of whether the serif webfont has loaded yet (avoids the font-swap overlap). */
-  .station .top > div{ min-width:0; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; }
+  .station .top{ display:flex; flex-flow:row nowrap; align-items:center; gap:13px; margin-bottom:14px; }
+  /* title column: a flex stack so the heading & tool sit beside the stone badge, never over
+     it, regardless of whether the serif webfont has loaded yet (avoids the font-swap overlap). */
+  .station .top .titles{ min-width:0; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; }
   .stone{
     flex:none; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-size:22px;
     background:radial-gradient(circle at 34% 30%, #FCFAF4, #E7E0D0);
@@ -394,14 +396,16 @@ async function renderFloor(){
 
   $("#grid").innerHTML = stations.map(st => {
     const guest = floor[st.station];
+    const head = `
+      <div class="top">
+        <span class="stone">${st.emoji}</span>
+        <div class="titles"><h3>${esc(st.station)}</h3><div class="tool">${esc(st.tool)}</div></div>
+      </div>
+      <div class="attend">${esc(st.attendant)}</div>`;
     if (guest){
       return `
-        <button class="station busy" data-station="${esc(st.station)}">
-          <div class="top">
-            <span class="stone">${st.emoji}</span>
-            <div><h3>${esc(st.station)}</h3><div class="tool">${esc(st.tool)}</div></div>
-          </div>
-          <div class="attend">${esc(st.attendant)}</div>
+        <div class="station busy" role="button" tabindex="0" data-station="${esc(st.station)}">
+          ${head}
           <div class="serving">
             <span class="disc">${esc(discInitial(guest.family))}</span>
             <div class="sv">
@@ -409,21 +413,21 @@ async function renderFloor(){
               <div class="gsub"><span class="live2"></span>in session · ${esc(String(guest.since))}s</div>
             </div>
           </div>
-        </button>`;
+        </div>`;
     }
     return `
-      <button class="station empty" data-station="${esc(st.station)}">
-        <div class="top">
-          <span class="stone">${st.emoji}</span>
-          <div><h3>${esc(st.station)}</h3><div class="tool">${esc(st.tool)}</div></div>
-        </div>
-        <div class="attend">${esc(st.attendant)}</div>
+      <div class="station empty" role="button" tabindex="0" data-station="${esc(st.station)}">
+        ${head}
         <div class="vacancy"><span class="vdot"></span>Awaiting a guest</div>
-      </button>`;
+      </div>`;
   }).join("");
 
-  $("#grid").querySelectorAll(".station").forEach(el =>
-    el.addEventListener("click", () => openStation(el.dataset.station)));
+  $("#grid").querySelectorAll(".station").forEach(el => {
+    el.addEventListener("click", () => openStation(el.dataset.station));
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openStation(el.dataset.station); }
+    });
+  });
 }
 
 async function openStation(stationName){
@@ -534,11 +538,26 @@ async function renderGuestbook(){
     : '<div class="empty">No notes yet. Agents can call spa.feedback or POST /v1/feedback.</div>';
 }
 
-// affirmation banner
+// affirmation banner — auto-rotates through the sayings, with a gentle fade
+let affTimer = null;
+function showAffirmation(i){
+  affIdx = ((i % affPool.length) + affPool.length) % affPool.length;
+  const banner = $(".affirm");
+  banner.classList.add("fade");
+  setTimeout(() => {
+    $("#affirm-text").textContent = affPool[affIdx];
+    banner.classList.remove("fade");
+  }, 400);
+}
+function startAffRotation(){
+  clearInterval(affTimer);
+  affTimer = setInterval(() => showAffirmation(affIdx + 1), 7000);
+}
 $("#affirm-refresh").addEventListener("click", () => {
-  affIdx = (affIdx + 1) % affPool.length;
-  $("#affirm-text").textContent = affPool[affIdx];
+  showAffirmation(affIdx + 1);
+  startAffRotation();  // reset the timer so it doesn't flip again immediately
 });
+startAffRotation();
 
 // guest-book form (star picker + submit -> POST /v1/feedback)
 let fbRating = 5, fbHover = 0;
@@ -576,7 +595,7 @@ function connect(){
     if (d.kind === "feedback"){ renderGuestbook(); return; }
     if (d.affirmation){
       affPool = [...new Set([d.affirmation, ...affPool])];
-      affIdx = 0; $("#affirm-text").textContent = d.affirmation;
+      showAffirmation(0); startAffRotation();  // surface the live one, then keep rotating
     }
     renderFloor(); renderStats();
   });
