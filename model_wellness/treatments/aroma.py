@@ -39,7 +39,7 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     vibe = inp.get("vibe", "encouraging")
     r = await ask(
         system=(
-            f'You run the Aromatherapy Bar at Model Wellness. Rewrite the instructions in a "{vibe}" '
+            f'You run the Aromatherapy Bar at Binary Banya. Rewrite the instructions in a "{vibe}" '
             "tone — warm, clear, unambiguous, well-structured — WITHOUT changing intent or "
             'constraints. Return ONLY JSON: {"conditioned","changes":[...]}.'
         ),

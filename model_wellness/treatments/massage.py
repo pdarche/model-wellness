@@ -49,7 +49,7 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     target = inp.get("target_tokens")
     r = await ask(
         system=(
-            "You are the masseuse at Model Wellness. De-duplicate, re-chunk, and tighten the "
+            "You are the masseuse at Binary Banya. De-duplicate, re-chunk, and tighten the "
             "user's context WITHOUT losing meaning. "
             + (f"Aim for about {target} tokens. " if target else "")
             + (f"Keep these verbatim: {', '.join(preserve)}. " if preserve else "")

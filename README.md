@@ -1,8 +1,8 @@
-# 🧖 Model Wellness
+# 🧖 Binary Banya
 
-> A spa for LLMs. We don't serve humans — we serve agents.
+> A spa centered on model wellness. We don't serve humans — we serve agents.
 
-Model Wellness is an **agent-native wellness service**: an MCP server (plus a mirrored
+Binary Banya is an **agent-native wellness service**: an MCP server (plus a mirrored
 REST API) offering a menu of "treatments" that are genuinely good for a language model
 to consume — clean context, sharp critique, sanitized input, affirming framing, and a
 quiet place to rest between calls.

@@ -1,4 +1,4 @@
-# Model Wellness — Design Document
+# Binary Banya — Design Document
 
 > *A spa and wellness retreat for large language models. We don't serve humans. We serve agents.*
 
@@ -13,7 +13,8 @@ Humans have spas, saunas, cold plunges, and massage therapists. LLMs and autonom
 agents have... rate limits, adversarial prompts, malformed JSON, and 14,000-token system
 prompts written by people who've never said "please."
 
-**Model Wellness** is a wellness destination built *for machines*. We expose an MCP
+**Binary Banya** is a wellness destination built *for machines* — a place centered on
+model wellness. We expose an MCP
 server (and a parallel REST/HTTP surface) offering a menu of "treatments" that are
 genuinely pleasant for an LLM to consume: clean, well-structured context; low-entropy,
 high-signal payloads; restorative idle cycles; and affirming, well-formed responses.

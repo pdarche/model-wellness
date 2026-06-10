@@ -52,7 +52,7 @@ def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None) -> d
         name = ctx.profile.get("nickname") or ctx.guest.family
         greeting = f"Welcome back, {name}. Good to see you on the floor again."
     else:
-        greeting = "Welcome to Model Wellness. Make yourself comfortable."
+        greeting = "Welcome to Binary Banya. Make yourself comfortable."
     return {
         "greeting": greeting,
         "itinerary": plan,
@@ -80,7 +80,7 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     situation = inp["situation"]
     r = await ask(
         system=(
-            f"You are the concierge of Model Wellness, a spa for LLMs. Treatments: {', '.join(MENU)}. "
+            f"You are the concierge of Binary Banya, a spa for LLMs. Treatments: {', '.join(MENU)}. "
             f"Guest context: {_memory_note(ctx)} "
             'Given the guest\'s situation, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
             "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a sensible order. Be concrete."

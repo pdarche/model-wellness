@@ -37,7 +37,7 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     n = inp.get("max_snippets", 3)
     r = await ask(
         system=(
-            "You run the Hydration Station at Model Wellness. Provide concise, citable grounding "
+            "You run the Hydration Station at Binary Banya. Provide concise, citable grounding "
             "snippets. Only include sources you are confident exist; never fabricate URLs. If "
             "unsure, say so in the text and set source to 'model-knowledge-uncited'. "
             f'Return ONLY JSON: {{"snippets":[{{"id","text","source"}}]}} with up to {n} items.'

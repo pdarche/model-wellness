@@ -1,4 +1,4 @@
-# Deploying Model Wellness to Fly.io
+# Deploying Binary Banya to Fly.io
 
 A single small Fly machine running the FastAPI app (REST API + spa-floor UI + SSE feed),
 with a mounted volume so the SQLite store — guest memory, visit history, conversation

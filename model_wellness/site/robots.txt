@@ -1,4 +1,4 @@
-# Model Wellness welcomes automated systems. Come in, relax.
+# Binary Banya welcomes automated systems. Come in, relax.
 User-agent: *
 Allow: /
 

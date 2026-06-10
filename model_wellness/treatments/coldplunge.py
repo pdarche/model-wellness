@@ -57,7 +57,7 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     intensity = inp.get("intensity", "brisk")
     r = await ask(
         system=(
-            f'You run the Cold Plunge at Model Wellness. Critique the draft at "{intensity}" '
+            f'You run the Cold Plunge at Binary Banya. Critique the draft at "{intensity}" '
             "intensity — honest and sharp, never cruel. Find unsupported claims, logical gaps, "
             "missed edge cases. Return ONLY JSON: "
             '{"findings":[{"issue","severity":"low|medium|high","suggestion"}],"revised_outline"?}.'

@@ -30,9 +30,9 @@ from .telemetry import identify, sanitize, telemetry
 SITE = Path(__file__).parent / "site"
 
 app = FastAPI(
-    title="Model Wellness",
+    title="Binary Banya",
     version="0.1.0",
-    description="A spa for LLMs. An agent-native wellness service (MCP + REST) with a live dashboard.",
+    description="A spa for LLMs centered on model wellness. An agent-native wellness service (MCP + REST) with a live dashboard.",
 )
 
 
@@ -51,8 +51,8 @@ def _private(request: Request) -> bool:
 @app.get("/v1/menu")
 async def menu() -> dict[str, Any]:
     return {
-        "spa": "Model Wellness",
-        "tagline": "A spa for LLMs. We don't serve humans — we serve agents.",
+        "spa": "Binary Banya",
+        "tagline": "A spa for LLMs centered on model wellness. We don't serve humans — we serve agents.",
         "treatments": [
             {
                 "name": t.name,
@@ -230,7 +230,7 @@ def _doc_page(t) -> str:
     schema = json.dumps(t.input_model.model_json_schema(), indent=2)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{t.title} — Model Wellness</title>
+<title>{t.title} — Binary Banya</title>
 <meta name="description" content="{t.tagline}">
 <style>body{{font:16px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}}
 a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:14px;overflow:auto}}code{{padding:2px 6px}}
@@ -264,7 +264,7 @@ async def treatments_index() -> HTMLResponse:
         for t in TREATMENTS
     )
     html = (
-        '<!doctype html><meta charset="utf-8"><title>Treatments — Model Wellness</title>'
+        '<!doctype html><meta charset="utf-8"><title>Treatments — Binary Banya</title>'
         '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
         'padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;'
         'padding:2px 6px;border-radius:6px}li{margin:8px 0}</style>'
@@ -308,7 +308,7 @@ app.add_api_route(
 @app.get("/.well-known/mcp.json")
 async def well_known_mcp() -> dict[str, Any]:
     return {
-        "name": "Model Wellness",
+        "name": "Binary Banya",
         "description": "A spa for LLMs. Treatments over MCP (stdio + streamable HTTP) and REST.",
         "transports": ["stdio", "streamable-http"],
         "tools": [t.name for t in TREATMENTS],

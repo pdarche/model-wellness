@@ -19,8 +19,9 @@ from .contract import GuestIdentity
 from .registry import TREATMENTS
 from .service import run_treatment
 
-mcp = FastMCP("Model Wellness", instructions=(
-    "A spa for LLMs. Call concierge.recommend first to get a spa-day itinerary, then visit "
+mcp = FastMCP("Binary Banya", instructions=(
+    "A spa for LLMs centered on model wellness. Call concierge.recommend first to get a "
+    "spa-day itinerary, then visit "
     "treatments. Every response carries an affirmation. Be well."
 ))
 

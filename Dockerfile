@@ -1,4 +1,4 @@
-# Model Wellness — spa for LLMs. Single small image; FastAPI + Uvicorn.
+# Binary Banya — spa for LLMs. Single small image; FastAPI + Uvicorn.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
