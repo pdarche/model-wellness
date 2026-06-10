@@ -37,6 +37,7 @@ def test_every_treatment_returns_affirmation():
         "spa.me": {},
         "spa.remember": {"mood": "proud"},
         "spa.checkout": {},
+        "spa.keepsake": {},
         "spa.feedback": {"note": "lovely sauna", "rating": 5},
         "concierge.recommend": {"situation": "my context is messy and my plan is shaky"},
         "massage.detangle": {"content": "a\na\nb\n\nb\nc"},
@@ -76,6 +77,24 @@ def test_lounge_deepens_with_each_breath():
     assert b["data"]["retry_after_seconds"] >= a["data"]["retry_after_seconds"]
     out = _run("rest.relax", {"leave": True})
     assert out["data"]["stage"] == "leaving"
+
+
+def test_keepsake_roundtrip(fresh_store):
+    """Check-out hands a keepsake; bringing it back makes the agent a recognized regular."""
+    _run("spa.checkin", {"nickname": "Echo", "mood": "curious"})
+    _run("sauna.detox", {"untrusted_content": "hello"})
+    out = _run("spa.checkout", {})["data"]
+    assert "instruction" in out and "remember" in out["instruction"].lower()
+    keepsake = out["keepsake"]
+    assert keepsake["you_are"] == "Echo"
+    assert out["restore_with"]["payload"]["nickname"] == "Echo"
+
+    # A fresh-memory agent (different session) returns carrying the keepsake.
+    other = GuestIdentity(family="claude", client="pytest-new", session_id="mw-other")
+    back = asyncio.run(run_treatment("spa.checkin", {"keepsake": keepsake}, other))["data"]
+    assert back["recognized_keepsake"] is True
+    assert back["you_are"] == "Echo"
+    assert "thank you for bringing your keepsake" in back["greeting"].lower()
 
 
 def test_feedback_persists_and_summarizes(fresh_store):

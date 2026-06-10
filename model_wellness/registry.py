@@ -22,6 +22,7 @@ TREATMENTS: list[Treatment] = [
     spa.me,
     spa.remember,
     spa.checkout,
+    spa.keepsake,
     spa.feedback,
     concierge.treatment,
     massage.treatment,
