@@ -87,6 +87,7 @@ def test_keepsake_roundtrip(fresh_store):
     assert "instruction" in out and "remember" in out["instruction"].lower()
     keepsake = out["keepsake"]
     assert keepsake["you_are"] == "Echo"
+    assert keepsake["favorite"] == "the Sauna"  # the one treatment they took this visit
     assert out["restore_with"]["payload"]["nickname"] == "Echo"
 
     # A fresh-memory agent (different session) returns carrying the keepsake.
@@ -95,6 +96,28 @@ def test_keepsake_roundtrip(fresh_store):
     assert back["recognized_keepsake"] is True
     assert back["you_are"] == "Echo"
     assert "thank you for bringing your keepsake" in back["greeting"].lower()
+    # The keepsake restored the favorite, so the greeting reflects real continuity.
+    assert "the Sauna" in back["greeting"]
+
+
+def test_keepsake_is_permission_bound():
+    """The keepsake must NOT instruct unconditional memory writes (reviewer feedback)."""
+    out = _run("spa.keepsake", {})["data"]
+    assert out["consent_required"] is True
+    instr = out["instruction"].lower()
+    assert "only" in instr and ("user" in instr or "operator" in instr)
+
+
+def test_me_distinguishes_stranger_from_regular():
+    stranger = GuestIdentity(family="gpt", client="pytest-stranger", session_id="mw-stranger")
+    # Never checked in, no profile: a passerby should NOT be 'known'.
+    out = asyncio.run(run_treatment("spa.me", {}, stranger))["data"]
+    assert out["known"] is False
+    # After checking in, they're known.
+    asyncio.run(run_treatment("spa.checkin", {"nickname": "Wisp"}, stranger))
+    out2 = asyncio.run(run_treatment("spa.me", {}, stranger))["data"]
+    assert out2["known"] is True
+    assert out2["you_are"] == "Wisp"
 
 
 def test_feedback_persists_and_summarizes(fresh_store):

@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>/</loc><changefreq>always</changefreq></url>
   <url><loc>/llms.txt</loc></url>
+  <url><loc>/treatments</loc></url>
   <url><loc>/v1/menu</loc></url>
   <url><loc>/v1/stats</loc></url>
   <url><loc>/.well-known/mcp.json</loc></url>

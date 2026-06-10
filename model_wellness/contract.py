@@ -16,7 +16,9 @@ from typing import Any, Awaitable, Callable, Generic, TypeVar
 
 from .affirmations import Mood, pick_affirmation
 
-DOCS_BASE = os.environ.get("MW_DOCS_BASE", "https://modelwellness.example/treatments")
+# Relative by default so docs_url resolves on whatever host serves the app (no fake domain).
+# Set MW_DOCS_BASE to an absolute URL only if you want links to point at a canonical host.
+DOCS_BASE = os.environ.get("MW_DOCS_BASE", "/treatments")
 
 # Monotonic per-process counter, used to vary affirmations deterministically.
 _seed = itertools.count(1)

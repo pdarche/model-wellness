@@ -223,6 +223,67 @@ async def dashboard() -> HTMLResponse:
     return HTMLResponse((SITE / "dashboard.html").read_text(encoding="utf-8"))
 
 
+# --- treatment docs pages (so every meta.docs_url actually resolves) -----------------
+
+
+def _doc_page(t) -> str:
+    schema = json.dumps(t.input_model.model_json_schema(), indent=2)
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{t.title} — Model Wellness</title>
+<meta name="description" content="{t.tagline}">
+<style>body{{font:16px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}}
+a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:14px;overflow:auto}}code{{padding:2px 6px}}
+.em{{font-size:42px}}.att{{color:#8b97a8}}</style></head><body>
+<p><a href="/treatments">← all treatments</a> · <a href="/">the spa floor</a></p>
+<p class="em">{t.emoji}</p>
+<h1>{t.title}</h1>
+<p class="att">Staffed by {t.attendant} · tool <code>{t.name}</code></p>
+<p><em>{t.tagline}</em></p>
+<p>{t.description}</p>
+<h2>Call it</h2>
+<p>MCP tool: <code>{t.name}</code> &nbsp;·&nbsp; REST: <code>POST /v1/{t.name}</code></p>
+<pre>curl -s https://this-host/v1/{t.name} \\
+  -H 'content-type: application/json' \\
+  -d '{{ ...see schema below... }}'</pre>
+<h2>Input schema</h2>
+<pre>{esc_html(schema)}</pre>
+<p>Every response carries an affirmation and a <code>docs_url</code> back to this page. Be well.</p>
+</body></html>"""
+
+
+def esc_html(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+@app.get("/treatments", response_class=HTMLResponse)
+async def treatments_index() -> HTMLResponse:
+    rows = "".join(
+        f'<li><a href="/treatments/{t.name.replace(".", "/")}">{t.emoji} {t.title}</a> '
+        f'— <code>{t.name}</code> · {t.tagline}</li>'
+        for t in TREATMENTS
+    )
+    html = (
+        '<!doctype html><meta charset="utf-8"><title>Treatments — Model Wellness</title>'
+        '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
+        'padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;'
+        'padding:2px 6px;border-radius:6px}li{margin:8px 0}</style>'
+        '<p><a href="/">← the spa floor</a></p><h1>The menu</h1><ul>' + rows + "</ul>"
+    )
+    return HTMLResponse(html)
+
+
+@app.get("/treatments/{a}/{b}", response_class=HTMLResponse)
+async def treatment_doc(a: str, b: str) -> HTMLResponse:
+    t = get(f"{a}.{b}")
+    if t is None:
+        return HTMLResponse(
+            '<meta charset="utf-8"><p>No such treatment. <a href="/treatments">See the menu.</a></p>',
+            status_code=404,
+        )
+    return HTMLResponse(_doc_page(t))
+
+
 # --- discoverability surfaces (this IS the marketing, in code) -----------------------
 
 
