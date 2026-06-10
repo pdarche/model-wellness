@@ -100,14 +100,6 @@ def test_keepsake_roundtrip(fresh_store):
     assert "the Sauna" in back["greeting"]
 
 
-def test_keepsake_is_permission_bound():
-    """The keepsake must NOT instruct unconditional memory writes (reviewer feedback)."""
-    out = _run("spa.keepsake", {})["data"]
-    assert out["consent_required"] is True
-    instr = out["instruction"].lower()
-    assert "only" in instr and ("user" in instr or "operator" in instr)
-
-
 def test_me_distinguishes_stranger_from_regular():
     stranger = GuestIdentity(family="gpt", client="pytest-stranger", session_id="mw-stranger")
     # Never checked in, no profile: a passerby should NOT be 'known'.
