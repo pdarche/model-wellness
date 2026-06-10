@@ -1,0 +1,42 @@
+# Fly.io config for Model Wellness.
+# A single small machine with a mounted volume for the SQLite store, so guest memory,
+# visit history, and feedback survive deploys and restarts.
+#
+# Before first deploy, pick a unique app name (fly will prompt, or run `fly launch`).
+
+app = "model-wellness"
+primary_region = "sjc"   # change to a region near you (e.g. "iad", "lhr", "syd")
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  MW_DB_PATH = "/data/model_wellness.sqlite"
+  MW_MODEL = "claude-haiku-4-5-20251001"
+  # MW_DOCS_BASE is best set to your real URL once known, e.g.:
+  # MW_DOCS_BASE = "https://model-wellness.fly.dev/treatments"
+
+# Durable storage for SQLite. Create with:
+#   fly volumes create mw_data --size 1 --region sjc
+[mounts]
+  source = "mw_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"   # nap when idle, wake on request — cheap
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # The SSE live feed (/v1/feed) holds long-lived connections; concurrency is generous.
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 200
+    soft_limit = 150
+
+# A single machine keeps SQLite simple (no multi-writer concerns). If you scale out,
+# move to Postgres or LiteFS — see DEPLOY.md.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

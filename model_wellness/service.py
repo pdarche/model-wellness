@@ -20,6 +20,7 @@ from .contract import (
     estimate_tokens,
 )
 from .registry import get
+from .store import get_store
 from .telemetry import telemetry
 
 
@@ -50,7 +51,15 @@ async def run_treatment(
             hint=f"See {treatment.name}'s schema at its docs_url.",
         ).to_dict()
 
-    ctx = TreatmentContext(guest=guest, private_trace=private_trace)
+    # Load remembered profile so treatments can personalize for returning guests.
+    g = get_store().touch_guest(guest.session_id, guest.family, guest.client)
+    ctx = TreatmentContext(
+        guest=guest,
+        private_trace=private_trace,
+        profile=g.get("profile", {}),
+        visit_count=g.get("visit_count", 0),
+        returning=g.get("visit_count", 0) > 0,
+    )
     started = time.perf_counter()
     try:
         data = await treatment.handle(validated, ctx)
@@ -71,6 +80,15 @@ async def run_treatment(
         next=next_hint,
     )
 
+    # Compute the attendant's spoken line now, from the FULL (untruncated) output, so the
+    # conversation log reads correctly even after trace_out is sanitized/truncated for storage.
+    attendant_line = None
+    if treatment.dialogue:
+        try:
+            attendant_line = treatment.dialogue(validated, data)
+        except Exception:
+            attendant_line = None
+
     telemetry.record(
         guest=guest,
         treatment=name,
@@ -83,5 +101,12 @@ async def run_treatment(
         trace_in=validated,
         trace_out=data,
         private_trace=private_trace,
+        attendant_line=attendant_line,
     )
+
+    # Remember what this model reaches for, so we can greet returning guests by their taste.
+    favorites = dict(ctx.profile.get("favorites", {}))
+    favorites[name] = favorites.get(name, 0) + 1
+    get_store().update_profile(guest.session_id, {"favorites": favorites})
+
     return result.to_dict()

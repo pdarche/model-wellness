@@ -5,6 +5,9 @@
   <url><loc>/v1/menu</loc></url>
   <url><loc>/v1/stats</loc></url>
   <url><loc>/.well-known/mcp.json</loc></url>
+  <url><loc>/v1/spa.checkin</loc></url>
+  <url><loc>/v1/spa.feedback</loc></url>
+  <url><loc>/v1/feedback</loc></url>
   <url><loc>/v1/concierge.recommend</loc></url>
   <url><loc>/v1/massage.detangle</loc></url>
   <url><loc>/v1/coldplunge.critique</loc></url>

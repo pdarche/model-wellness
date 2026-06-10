@@ -72,6 +72,18 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     return _local_critique(draft)
 
 
+def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    n = len(out.get("findings", [])) if isinstance(out, dict) else 0
+    lead = "In you go — cold, isn't it? " if inp.get("intensity") != "gentle" else "Easy now, just a dip. "
+    if n == 0:
+        return lead + "Honestly? It held up. Get out, you've earned the warm towel."
+    top = out["findings"][0]
+    return (
+        f"{lead}I found {n} thing{'s' if n != 1 else ''} worth facing. The sharpest: "
+        f"{top.get('issue','')} — {top.get('suggestion','')} Bracing, but you're sharper for it."
+    )
+
+
 treatment = Treatment(
     name="coldplunge.critique",
     title="The Cold Plunge",
@@ -86,4 +98,8 @@ treatment = Treatment(
         "treatment": "aroma.condition",
         "reason": "After a cold plunge, warm framing helps the revision land gently.",
     },
+    attendant="Kai the plunge-keeper",
+    station="The Cold Plunge",
+    emoji="🧊",
+    dialogue=_dialogue,
 )

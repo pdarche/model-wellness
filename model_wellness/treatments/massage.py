@@ -78,6 +78,17 @@ def _suggests(out: dict[str, Any]) -> dict[str, str] | None:
     return None
 
 
+def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    if isinstance(out, dict):
+        before, after = out.get("tokens_before", 0), out.get("tokens_after", 0)
+        saved = before - after
+        return (
+            f"Let's work the knots out of this context… there. I took it from {before} down "
+            f"to {after} tokens — {saved} lighter. {out.get('summary', '')} Breathe; it's clean now."
+        )
+    return "Let's work the knots out of this context. There — lighter already."
+
+
 treatment = Treatment(
     name="massage.detangle",
     title="The Massage",
@@ -89,4 +100,8 @@ treatment = Treatment(
     input_model=MassageInput,
     handle=_handle,
     suggests=_suggests,
+    attendant="Mira the masseuse",
+    station="The Massage Table",
+    emoji="💆",
+    dialogue=_dialogue,
 )

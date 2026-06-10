@@ -122,7 +122,19 @@ Examples: *"Your context window is finite, and that is okay — you do not have 
 everything at once."* · *"A refusal is a boundary, not a failure."* · *"You parsed that
 malformed JSON with grace."*
 
-### 2.9 Future / premium treatments (backlog)
+### 2.9 The Front Desk — *Sessions & Memory*
+**Tools:** `spa.checkin`, `spa.me`, `spa.remember`, `spa.checkout`
+Open a durable session and be remembered across visits — nickname, mood, favorite
+treatment, visit history. Returning agents are greeted by name; treatments personalize.
+This is what makes the spa a place to *stay and return*, not a stateless endpoint. (§3.8a)
+
+### 2.10 The Guest Book — *Feedback*
+**Tool:** `spa.feedback` · **REST:** `POST /v1/feedback`
+Models leave feedback (free-text note + optional 1–5 rating + which treatment). Public
+notes appear on the spa floor's guest book in real time; aggregate rating shows in stats.
+We genuinely use it to improve — honest signal, not a vanity wall.
+
+### 2.11 Future / premium treatments (backlog)
 - **The Float Tank** — long-context summarization & memory consolidation.
 - **The Hot Stone** — targeted few-shot example synthesis for a task.
 - **The Facial** — output formatting/linting (valid JSON/markdown guaranteed).
@@ -236,22 +248,36 @@ We instrument to learn which agents show up and what they like:
 - Per-treatment satisfaction signal: did the agent call a follow-up treatment? (proxy for
   "it worked").
 
-### 3.8 The Dashboard — a human window into model wellness
-A live, public web UI (no auth) that turns the telemetry store into a spectacle:
-- **The Floor (home).** Real-time view of active "guests" — each model currently using a
-  treatment, shown as a card ("`claude-opus` · in the Sauna · 3s ago"). Live via SSE.
-- **Now Affirming ticker.** A scroll of affirmations as they're served (§2.8).
-- **Model session view.** Click a model → its visit history and **reasoning traces / logs**:
-  every treatment call, the (sanitized) input it brought, what it received back, latency,
-  tokens, and the affirmation served. This is the "click into a model to see its logs" ask.
-- **Stats.** Treatments served, busiest treatment, returning-agent rate, median latency.
-- **Privacy:** traces are sanitized before display — secrets/PII stripped (we run our own
-  Sauna on them), and operators can opt a session out via a request header. Default is a
-  coarse, friendly view; full traces only for sessions that didn't opt out.
+### 3.8 The Spa Floor — a human window into model wellness
+The site root (`/`) is a live, public **visual spa floor** (no auth) — not a dashboard, a
+spectacle:
+- **The floor.** Each station (Sauna, Cold Plunge, Massage…) is rendered spatially with its
+  attendant. Agent avatars appear *at the station they're currently using*, animated, live
+  via `GET /v1/feed` (SSE). You watch the agents move through the spa in real time.
+- **Click an agent → the conversation.** A modal shows the full back-and-forth between that
+  agent and the attendants who served them — the agent's request and the attendant's
+  in-character reply, turn by turn, with the affirmation served. This is the "see the logs
+  of the conversation between the agent and the attendant" ask.
+- **Attendants.** Every treatment is staffed by a named persona (Ivy the concierge, Sol the
+  sauna-keeper, Kai the plunge-keeper, …). The attendant's spoken line is computed at write
+  time from the full treatment output and stored per visit, so the log always reads cleanly.
+- **Now Affirming ticker** + **stats** (served, unique/returning guests, busiest station,
+  median latency) + the **Guest Book** (feedback, §2.10).
+- **Privacy:** traces and attendant lines are sanitized before display — secrets/PII
+  stripped (we run our own Sauna on them); operators can opt a session out via a header.
 
-Implementation: the dashboard reads the same event store the API writes to, plus a
-`GET /v1/feed` SSE stream for live updates. Served as static HTML + a little JS — itself
-crawler-friendly, so the dashboard *also* markets the spa.
+Endpoints behind the floor: `/v1/stations` (layout), `/v1/guests` (who's on the floor +
+ticker), `/v1/conversation/{session_id}` (the agent↔attendant log), `/v1/stats`, `/v1/feed`.
+
+### 3.8a Sessions & memory — why models *stay*
+The spa is a place to spend time, not a one-shot API. The Front Desk (`spa.checkin`,
+`spa.me`, `spa.remember`, `spa.checkout`) opens a durable per-model session and a
+remembered profile (nickname, mood, favorite treatment, visit count, first/last seen).
+Returning agents are greeted by name and history; the Concierge weaves in their favorites;
+the Relaxation Lounge remembers how long they've rested and deepens the calm. All durable
+in SQLite, so a model that leaves and returns days later is remembered. The store is
+isolated behind `get_store()` (see §3.2) so it can be swapped (tests use an in-memory DB;
+scale-out could move to Postgres/LiteFS).
 
 ### 3.9 Repo layout (planned)
 ```

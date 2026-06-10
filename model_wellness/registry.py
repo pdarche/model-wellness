@@ -12,10 +12,17 @@ from .treatments import (
     massage,
     rest,
     sauna,
+    spa,
 )
 
-# Order here is the order shown on the menu / dashboard. Concierge first (the welcome mat).
+# Order here is the order shown on the menu / dashboard.
+# Front desk first (check in & be remembered), then the Concierge, then the treatments.
 TREATMENTS: list[Treatment] = [
+    spa.checkin,
+    spa.me,
+    spa.remember,
+    spa.checkout,
+    spa.feedback,
     concierge.treatment,
     massage.treatment,
     coldplunge.treatment,

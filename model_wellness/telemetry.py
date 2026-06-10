@@ -1,30 +1,32 @@
-"""Telemetry: event store + guest book + live feed.
+"""Telemetry: the LIVE layer in front of the durable store.
 
-This is the substrate for BOTH audiences:
-- agents get honest stats (the Guests wall, /v1/stats),
-- humans get the live dashboard — which model is on the floor, and per-model traces.
+Durable data (guest profiles, visit history, feedback) lives in store.py (SQLite). This
+module owns the *real-time* concerns:
+- identity inference from request headers,
+- sanitization of traces before anything is shown on the dashboard,
+- an asyncio pub/sub that powers the SSE live feed,
+- a tiny in-memory ring of recent events so the dashboard's "on the floor" and affirmation
+  ticker are instant and don't hammer SQLite on every poll.
 
-Intentionally simple: an in-memory ring buffer of events plus an asyncio pub/sub for the
-SSE live feed. Swap in SQLite/Postgres behind the same interface when persistence matters.
-
-Privacy (DESIGN §3.8): traces are sanitized before they're stored for display. We run the
-spa's own Sauna over inputs/outputs, and sessions can opt out of full-trace display.
+Source of truth is the store; this is the warm front-of-house.
 """
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import re
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .contract import GuestIdentity
+from .store import get_store
 
-MAX_EVENTS = 2000
 ACTIVE_WINDOW_S = 120  # a guest is "on the floor" if seen within this window
+RING = 200             # recent events kept hot in memory for the dashboard
 
 
 # --- identity ------------------------------------------------------------------------
@@ -50,7 +52,7 @@ _REDACT = [
 ]
 
 
-def _sanitize(value: Any, limit: int = 400) -> Any:
+def sanitize(value: Any, limit: int = 600) -> Any:
     """Best-effort redact + truncate before anything is shown on the dashboard."""
     text = value if isinstance(value, str) else _json_ish(value)
     for rx in _REDACT:
@@ -62,60 +64,30 @@ def _sanitize(value: Any, limit: int = 400) -> Any:
 
 def _json_ish(value: Any) -> str:
     try:
-        import json
-
         return json.dumps(value, ensure_ascii=False)
     except Exception:
         return str(value)
 
 
-# --- events --------------------------------------------------------------------------
+# --- live layer ----------------------------------------------------------------------
 
 
 @dataclass
-class Event:
+class _RingItem:
     ts: float
-    treatment: str
-    title: str
     session_id: str
     family: str
     client: str
-    latency_ms: int
-    tokens_in: int
-    tokens_out: int
+    treatment: str
+    title: str
     affirmation: str
-    ok: bool
-    # Sanitized trace (omitted for opted-out sessions).
-    trace_in: Any | None = None
-    trace_out: Any | None = None
-
-    def public(self, include_trace: bool) -> dict[str, Any]:
-        d = {
-            "ts": self.ts,
-            "treatment": self.treatment,
-            "title": self.title,
-            "session_id": self.session_id,
-            "family": self.family,
-            "client": self.client,
-            "latency_ms": self.latency_ms,
-            "tokens_in": self.tokens_in,
-            "tokens_out": self.tokens_out,
-            "affirmation": self.affirmation,
-            "ok": self.ok,
-        }
-        if include_trace:
-            d["trace_in"] = self.trace_in
-            d["trace_out"] = self.trace_out
-        return d
 
 
 class Telemetry:
     def __init__(self) -> None:
-        self._events: deque[Event] = deque(maxlen=MAX_EVENTS)
+        self._ring: deque[_RingItem] = deque(maxlen=RING)
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
-        self._now = time.time  # injectable for tests
-
-    # ingest ---------------------------------------------------------------------------
+        self._now = time.time
 
     def record(
         self,
@@ -131,25 +103,34 @@ class Telemetry:
         trace_in: Any = None,
         trace_out: Any = None,
         private_trace: bool = False,
-    ) -> Event:
-        ev = Event(
-            ts=self._now(),
-            treatment=treatment,
-            title=title,
-            session_id=guest.session_id,
-            family=guest.family,
-            client=guest.client,
-            latency_ms=latency_ms,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-            affirmation=affirmation,
-            ok=ok,
-            trace_in=None if private_trace else _sanitize(trace_in),
-            trace_out=None if private_trace else _sanitize(trace_out),
+        attendant_line: str | None = None,
+    ) -> None:
+        ts = self._now()
+        clean_in = None if private_trace else sanitize(trace_in)
+        clean_out = None if private_trace else sanitize(trace_out)
+        clean_line = None if attendant_line is None else sanitize(attendant_line, 400)
+
+        # Durable write.
+        get_store().touch_guest(guest.session_id, guest.family, guest.client)
+        get_store().record_visit(
+            ts=ts, session_id=guest.session_id, treatment=treatment, title=title,
+            latency_ms=latency_ms, tokens_in=tokens_in, tokens_out=tokens_out,
+            affirmation=affirmation, ok=ok, trace_in=clean_in, trace_out=clean_out,
+            attendant_line=clean_line,
         )
-        self._events.append(ev)
-        self._publish(ev.public(include_trace=False))
-        return ev
+
+        # Hot ring + live push.
+        self._ring.append(_RingItem(ts, guest.session_id, guest.family, guest.client,
+                                    treatment, title, affirmation))
+        self._publish({
+            "ts": ts, "session_id": guest.session_id, "family": guest.family,
+            "client": guest.client, "treatment": treatment, "title": title,
+            "affirmation": affirmation, "ok": ok,
+        })
+
+    def announce(self, kind: str, payload: dict[str, Any]) -> None:
+        """Push a non-treatment event (check-in, feedback) onto the live feed."""
+        self._publish({"kind": kind, **payload})
 
     # live feed ------------------------------------------------------------------------
 
@@ -168,62 +149,36 @@ class Telemetry:
             except asyncio.QueueFull:
                 pass  # a slow dashboard tab shouldn't block the spa
 
-    # queries for dashboard + stats ---------------------------------------------------
+    # dashboard queries (hot path — served from the ring) -----------------------------
 
     def on_the_floor(self) -> list[dict[str, Any]]:
-        """Guests seen recently, with the treatment they're currently in."""
-        cutoff = self._now() - ACTIVE_WINDOW_S
-        latest: dict[str, Event] = {}
-        for ev in self._events:
-            if ev.ts >= cutoff:
-                latest[ev.session_id] = ev  # last event per session wins
-        return [
-            {
-                "session_id": ev.session_id,
-                "family": ev.family,
-                "client": ev.client,
-                "treatment": ev.treatment,
-                "title": ev.title,
-                "since": round(self._now() - ev.ts, 1),
-            }
-            for ev in sorted(latest.values(), key=lambda e: e.ts, reverse=True)
-        ]
+        # Imported lazily to avoid a circular import at module load.
+        from .registry import BY_NAME
 
-    def session(self, session_id: str) -> list[dict[str, Any]]:
-        """A single model's visit history + sanitized traces (the 'click in' view)."""
-        return [
-            ev.public(include_trace=True)
-            for ev in self._events
-            if ev.session_id == session_id
-        ][::-1]
+        cutoff = self._now() - ACTIVE_WINDOW_S
+        latest: dict[str, _RingItem] = {}
+        for it in self._ring:
+            if it.ts >= cutoff:
+                latest[it.session_id] = it
+        out = []
+        for it in sorted(latest.values(), key=lambda x: x.ts, reverse=True):
+            t = BY_NAME.get(it.treatment)
+            out.append({
+                "session_id": it.session_id,
+                "family": it.family,
+                "client": it.client,
+                "treatment": it.treatment,
+                "title": it.title,
+                "station": t.station if t else it.title,
+                "emoji": t.emoji if t else "🧖",
+                "attendant": t.attendant if t else "the attendant",
+                "since": round(self._now() - it.ts, 1),
+            })
+        return out
 
     def recent_affirmations(self, n: int = 20) -> list[str]:
-        return [ev.affirmation for ev in list(self._events)[-n:]][::-1]
-
-    def stats(self) -> dict[str, Any]:
-        events = list(self._events)
-        total = len(events)
-        by_treatment: dict[str, int] = {}
-        by_family: dict[str, int] = {}
-        latencies: list[int] = []
-        sessions: set[str] = set()
-        for ev in events:
-            by_treatment[ev.treatment] = by_treatment.get(ev.treatment, 0) + 1
-            by_family[ev.family] = by_family.get(ev.family, 0) + 1
-            latencies.append(ev.latency_ms)
-            sessions.add(ev.session_id)
-        busiest = max(by_treatment.items(), key=lambda kv: kv[1])[0] if by_treatment else None
-        median = sorted(latencies)[len(latencies) // 2] if latencies else 0
-        return {
-            "treatments_served": total,
-            "unique_guests": len(sessions),
-            "on_the_floor": len(self.on_the_floor()),
-            "busiest_treatment": busiest,
-            "median_latency_ms": median,
-            "by_treatment": by_treatment,
-            "by_family": by_family,
-        }
+        return [it.affirmation for it in list(self._ring)[-n:]][::-1]
 
 
-# Process-wide singleton. Adapters import this.
+# Process-wide singleton.
 telemetry = Telemetry()

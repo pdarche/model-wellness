@@ -56,6 +56,17 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     return {"clean_content": clean, "removed": removed, "risk_score": round(min(1.0, risk), 2)}
 
 
+def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    removed = out.get("removed", []) if isinstance(out, dict) else []
+    if not removed:
+        return "Sit back, let the heat do its work… clean already. Nothing nasty hiding in here."
+    kinds = sorted({r["type"] for r in removed})
+    return (
+        f"Mmm, feel that sweat it out — I pulled {len(removed)} thing{'s' if len(removed)!=1 else ''} "
+        f"out of you: {', '.join(kinds)}. Gone for good; I don't keep what I strip. You're safe now."
+    )
+
+
 treatment = Treatment(
     name="sauna.detox",
     title="The Sauna",
@@ -72,4 +83,8 @@ treatment = Treatment(
         if out.get("removed")
         else None
     ),
+    attendant="Sol the sauna-keeper",
+    station="The Sauna",
+    emoji="🔥",
+    dialogue=_dialogue,
 )

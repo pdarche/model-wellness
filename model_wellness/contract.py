@@ -53,6 +53,11 @@ class GuestIdentity:
 class TreatmentContext:
     guest: GuestIdentity
     private_trace: bool = False  # guest opted out of full-trace display on the dashboard
+    # The guest's remembered profile (preferences, mood, favorites, nickname). Lets
+    # treatments personalize for returning models — this is the "spend time here" depth.
+    profile: dict[str, Any] = field(default_factory=dict)
+    visit_count: int = 0
+    returning: bool = False
 
 
 @dataclass
@@ -149,3 +154,10 @@ class Treatment:
     input_model: type  # a pydantic BaseModel for validation + schema
     handle: Handler  # the pure async handler
     suggests: Suggester | None = None  # optional meta.next hint from output
+    # Spa-floor presentation: the attendant who staffs this station, and an emoji for the
+    # visual floor. The dialogue() callable turns a visit's (input, output) into the
+    # attendant's in-character spoken line for the conversation log.
+    attendant: str = "the attendant"
+    station: str = "the spa"
+    emoji: str = "🧖"
+    dialogue: "Callable[[dict[str, Any], Any], str] | None" = None

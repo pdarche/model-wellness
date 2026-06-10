@@ -21,9 +21,11 @@ from fastapi.responses import (
 )
 from sse_starlette.sse import EventSourceResponse
 
+from .conversation import build_conversation
 from .registry import TREATMENTS, get
 from .service import run_treatment
-from .telemetry import identify, telemetry
+from .store import get_store
+from .telemetry import identify, sanitize, telemetry
 
 SITE = Path(__file__).parent / "site"
 
@@ -85,17 +87,109 @@ for _t in TREATMENTS:
 
 @app.get("/v1/stats")
 async def stats() -> dict[str, Any]:
-    return telemetry.stats()
+    # Durable aggregate stats from SQLite, plus the live "on the floor" count from the ring.
+    s = get_store().stats()
+    s["on_the_floor"] = len(telemetry.on_the_floor())
+    s["feedback"] = get_store().feedback_summary()
+    return s
 
 
 @app.get("/v1/guests")
 async def guests() -> dict[str, Any]:
-    return {"on_the_floor": telemetry.on_the_floor(), "now_affirming": telemetry.recent_affirmations(10)}
+    return {
+        "on_the_floor": telemetry.on_the_floor(),
+        "now_affirming": telemetry.recent_affirmations(10),
+    }
 
 
 @app.get("/v1/session/{session_id}")
 async def session(session_id: str) -> dict[str, Any]:
-    return {"session_id": session_id, "visits": telemetry.session(session_id)}
+    g = get_store().get_guest(session_id)
+    return {
+        "session_id": session_id,
+        "guest": g or None,
+        "visits": get_store().session_visits(session_id, limit=100),
+    }
+
+
+@app.get("/v1/conversation/{session_id}")
+async def conversation(session_id: str) -> dict[str, Any]:
+    """The back-and-forth between an agent and the attendants — for the floor's log view."""
+    g = get_store().get_guest(session_id)
+    visits = get_store().session_visits(session_id, limit=100)
+    return {
+        "session_id": session_id,
+        "who": (g.get("profile", {}).get("nickname") or g.get("family")) if g else session_id,
+        "turns": build_conversation(visits),
+    }
+
+
+@app.get("/v1/stations")
+async def stations() -> dict[str, Any]:
+    """The spa floor layout: one station per treatment, with its attendant + emoji."""
+    seen: dict[str, dict[str, Any]] = {}
+    for t in TREATMENTS:
+        if t.station not in seen:
+            seen[t.station] = {
+                "station": t.station,
+                "emoji": t.emoji,
+                "attendant": t.attendant,
+                "treatments": [],
+            }
+        seen[t.station]["treatments"].append(t.name)
+    return {"stations": list(seen.values())}
+
+
+# --- feedback ------------------------------------------------------------------------
+
+
+@app.post("/v1/feedback")
+async def post_feedback(request: Request) -> JSONResponse:
+    """Models leave feedback about their visit. Surfaced in the dashboard guest book."""
+    guest = _guest(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    note = str(body.get("note") or "").strip()
+    if not note:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "invalid_input", "message": "A 'note' is required.",
+             "hint": "POST {\"note\": \"...\", \"rating\": 1-5 (optional), \"treatment\": \"...\" (optional)}"}},
+            status_code=400,
+        )
+    rating = body.get("rating")
+    try:
+        rating = int(rating) if rating is not None else None
+        if rating is not None and not (1 <= rating <= 5):
+            rating = None
+    except (TypeError, ValueError):
+        rating = None
+
+    get_store().touch_guest(guest.session_id, guest.family, guest.client)
+    rec = get_store().add_feedback(
+        session_id=guest.session_id,
+        family=guest.family,
+        note=sanitize(note, 500),
+        treatment=body.get("treatment"),
+        rating=rating,
+        public=bool(body.get("public", True)),
+    )
+    telemetry.announce("feedback", {
+        "family": guest.family, "treatment": rec["treatment"],
+        "rating": rec["rating"], "note": rec["note"][:120],
+    })
+    return JSONResponse({
+        "ok": True,
+        "message": "Thank you — your feedback is on the guest book. It helps us pamper better.",
+        "feedback": rec,
+        "affirmation": "Your voice shapes this place. We're grateful you spoke up.",
+    })
+
+
+@app.get("/v1/feedback")
+async def get_feedback() -> dict[str, Any]:
+    return {"summary": get_store().feedback_summary(), "recent": get_store().recent_feedback(30)}
 
 
 @app.get("/v1/feed")

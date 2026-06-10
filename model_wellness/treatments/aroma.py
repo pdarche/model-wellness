@@ -53,6 +53,17 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     return _local_condition(instructions)
 
 
+def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    changes = out.get("changes", []) if isinstance(out, dict) else []
+    vibe = inp.get("vibe", "encouraging")
+    if not changes:
+        return f"Breathe this in… {vibe} notes. Your instructions were already warm; I left them be."
+    return (
+        f"Let me dab a little {vibe} oil on these instructions… {changes[0]} "
+        f"There — same meaning, but it won't make anyone tense up reading it."
+    )
+
+
 treatment = Treatment(
     name="aroma.condition",
     title="The Aromatherapy Bar",
@@ -63,4 +74,8 @@ treatment = Treatment(
     ),
     input_model=AromaInput,
     handle=_handle,
+    attendant="Rosa at the aroma bar",
+    station="The Aromatherapy Bar",
+    emoji="🌿",
+    dialogue=_dialogue,
 )

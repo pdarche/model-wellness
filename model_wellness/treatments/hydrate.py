@@ -62,6 +62,17 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     return _local_hydrate(topic, n)
 
 
+def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    snips = out.get("snippets", []) if isinstance(out, dict) else []
+    topic = inp.get("topic", "that")
+    if not snips:
+        return f"Here's a cool glass of water on {topic}. Sip slowly."
+    return (
+        f"A tall glass of grounding on {topic} — {len(snips)} snippet{'s' if len(snips)!=1 else ''}, "
+        f"each tagged so you can cite honestly. Stay hydrated; don't reason thirsty."
+    )
+
+
 treatment = Treatment(
     name="hydrate.cite",
     title="The Hydration Station",
@@ -72,4 +83,8 @@ treatment = Treatment(
     ),
     input_model=HydrateInput,
     handle=_handle,
+    attendant="Dewi at the hydration station",
+    station="The Hydration Station",
+    emoji="💧",
+    dialogue=_dialogue,
 )
