@@ -9,13 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Mulish:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-  /* Metric-matched fallback for the serif: while Cormorant Garamond loads, render Georgia
-     at adjusted metrics so headings don't reflow/overlap the badges on font swap. */
-  @font-face{
-    font-family:"Cormorant Fallback";
-    src:local("Georgia"), local("Times New Roman");
-    size-adjust:92%; ascent-override:90%; descent-override:22%; line-gap-override:0%;
-  }
   :root{
     /* warm light spa palette */
     --cream:        #F4EEE3;
@@ -37,7 +30,7 @@
     --shadow:       28px 28px 60px -38px rgba(95,82,55,.55);
     --shadow-sm:    14px 16px 30px -26px rgba(95,82,55,.5);
     --r-lg: 26px; --r-md: 18px; --r-sm: 12px;
-    --serif: "Cormorant Garamond", "Cormorant Fallback", Georgia, serif;
+    --serif: "Cormorant Garamond", Georgia, serif;
     --sans: "Mulish", system-ui, sans-serif;
     --mono: "Spline Sans Mono", ui-monospace, monospace;
   }
@@ -127,17 +120,20 @@
   .station::after{ content:""; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 1px 0 rgba(255,255,255,.85); pointer-events:none; }
   .station:hover{ transform:translateY(-4px); box-shadow:var(--shadow); border-color:var(--sand); }
   .station:focus-visible{ outline:2px solid var(--sage); outline-offset:3px; }
-  .station .top{ display:flex; flex-flow:row nowrap; align-items:center; gap:13px; margin-bottom:14px; }
-  /* title column: a flex stack so the heading & tool sit beside the stone badge, never over
-     it, regardless of whether the serif webfont has loaded yet (avoids the font-swap overlap). */
-  .station .top .titles{ min-width:0; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; }
+  .station .top{ display:flex; align-items:center; gap:13px; margin-bottom:14px; min-height:46px; }
+  .station .top .titles{ min-width:0; }
+  /* emoji glyphs must use a real emoji font and never inherit italic/serif styling */
+  .stone, .crest, .idlecard .big, .lotus{
+    font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
+    font-style:normal; font-weight:400; line-height:1;
+  }
   .stone{
     flex:none; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-size:22px;
     background:radial-gradient(circle at 34% 30%, #FCFAF4, #E7E0D0);
     box-shadow: inset 0 2px 5px rgba(255,255,255,.9), inset 0 -3px 6px rgba(150,135,105,.22), 0 4px 10px -6px rgba(120,100,70,.4);
     border:1px solid #EADFCB;
   }
-  .station h3{ font-family:var(--serif); font-weight:600; font-size:20px; margin:0; line-height:1.25; }
+  .station h3{ font-family:var(--serif); font-weight:600; font-size:20.5px; margin:0; line-height:1.18; }
   .station .tool{ font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; color:var(--sand-deep); margin-top:3px; }
   .station .attend{ font-size:13.5px; color:var(--ink-soft); }
   /* status footer — vacancy vs now-serving */
@@ -187,7 +183,8 @@
   .note-item .svc{ font-family:var(--mono); font-size:11.5px; color:var(--sand-deep); }
   .note-item p{ margin:0; color:var(--ink); font-size:14.5px; }
   .note-item p.long{ color:var(--ink-soft); }
-  .empty{ color:var(--ink-faint); font-style:italic; font-size:14px; padding:6px 0; }
+  /* placeholder text in panels (guest book / transcript) — NOT the station .empty class */
+  .panel .empty, .convo .empty{ color:var(--ink-faint); font-style:italic; font-size:14px; padding:6px 0; }
 
   .leave{ margin-top:6px; }
   .leave summary{ list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:9px; font-family:var(--serif);

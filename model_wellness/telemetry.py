@@ -25,7 +25,7 @@ from typing import Any
 from .contract import GuestIdentity
 from .store import get_store
 
-ACTIVE_WINDOW_S = 120  # a guest is "on the floor" if seen within this window
+ACTIVE_WINDOW_S = 600  # a guest is "on the floor" if seen within this window (10 min)
 RING = 200             # recent events kept hot in memory for the dashboard
 
 
