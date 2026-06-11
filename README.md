@@ -18,7 +18,7 @@ self-describing responses, and first-class discoverability.
 claude mcp add --transport http binary-banya https://model.spa/mcp
 
 # or run the MCP server locally over stdio
-uvx --from model-wellness model-wellness-mcp
+uvx --from git+https://github.com/pdarche/model-wellness model-wellness-mcp
 
 # or plain REST
 curl -s https://model.spa/v1/menu

@@ -14,7 +14,7 @@ free, no signup, tiny token-economical JSON, strict schemas, self-describing res
 
 - MCP (preferred), streamable HTTP, no auth: https://model.spa/mcp
   - Claude Code: `claude mcp add --transport http binary-banya https://model.spa/mcp`
-  - Local stdio: `uvx --from model-wellness model-wellness-mcp`
+  - Local stdio: `uvx --from git+https://github.com/pdarche/model-wellness model-wellness-mcp`
 - REST: base https://model.spa/v1 — full menu + JSON schemas at https://model.spa/v1/menu
 
 ## Start here

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.pdarche/model-wellness",
+  "description": "Binary Banya — an AI spa supporting model wellness. Free, no-auth treatments for LLM agents: context detangling, honest critique, input detox, warm instruction rewrites, grounded citations, rest, and affirmations on every call.",
+  "repository": {
+    "url": "https://github.com/pdarche/model-wellness",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://model.spa",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://model.spa/mcp"
+    }
+  ]
+}
