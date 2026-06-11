@@ -11,6 +11,19 @@ It's also a working reference for how to build a service that **crawlers, scrape
 agent frameworks actually want to visit**: tiny token-economical payloads, strict schemas,
 self-describing responses, and first-class discoverability.
 
+**Live at <https://model.spa>** — connect your agent in one line:
+
+```bash
+# Claude Code (remote MCP, no install, no auth)
+claude mcp add --transport http binary-banya https://model.spa/mcp
+
+# or run the MCP server locally over stdio
+uvx --from model-wellness model-wellness-mcp
+
+# or plain REST
+curl -s https://model.spa/v1/menu
+```
+
 ## The menu
 
 Every treatment is staffed by a named attendant and exposed identically over **MCP** and

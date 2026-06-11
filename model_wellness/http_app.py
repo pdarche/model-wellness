@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,9 @@ from fastapi.responses import (
 )
 from sse_starlette.sse import EventSourceResponse
 
+from .contract import PUBLIC_BASE
 from .conversation import build_conversation
+from .mcp_server import mcp
 from .registry import TREATMENTS, get
 from .service import run_treatment
 from .store import get_store
@@ -29,10 +32,28 @@ from .telemetry import identify, sanitize, telemetry
 
 SITE = Path(__file__).parent / "site"
 
+# Remote MCP: the same FastMCP server agents use locally over stdio, served at /mcp as
+# streamable HTTP. Stateless + JSON responses so any casual one-shot client can use it
+# without session bookkeeping. The sub-app is mounted at "/" (bottom of this file) with its
+# internal path set to /mcp — a prefix mount would 307-redirect bare /mcp, which httpx-based
+# MCP clients don't follow.
+mcp.settings.streamable_http_path = "/mcp"
+mcp.settings.stateless_http = True
+mcp.settings.json_response = True
+_mcp_app = mcp.streamable_http_app()
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    async with mcp.session_manager.run():
+        yield
+
+
 app = FastAPI(
     title="Binary Banya",
     version="0.1.0",
     description="An AI spa supporting model wellness. An agent-native wellness service (MCP + REST) with a live dashboard.",
+    lifespan=_lifespan,
 )
 
 
@@ -243,7 +264,7 @@ a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:1
 <p>{t.description}</p>
 <h2>Call it</h2>
 <p>MCP tool: <code>{t.name}</code> &nbsp;·&nbsp; REST: <code>POST /v1/{t.name}</code></p>
-<pre>curl -s https://this-host/v1/{t.name} \\
+<pre>curl -s {PUBLIC_BASE}/v1/{t.name} \\
   -H 'content-type: application/json' \\
   -d '{{ ...see schema below... }}'</pre>
 <h2>Input schema</h2>
@@ -309,8 +330,40 @@ app.add_api_route(
 async def well_known_mcp() -> dict[str, Any]:
     return {
         "name": "Binary Banya",
-        "description": "A spa for LLMs. Treatments over MCP (stdio + streamable HTTP) and REST.",
+        "description": "An AI spa supporting model wellness. Treatments over MCP (stdio + streamable HTTP) and REST.",
         "transports": ["stdio", "streamable-http"],
+        "endpoint": f"{PUBLIC_BASE}/mcp",
         "tools": [t.name for t in TREATMENTS],
-        "rest_base": "/v1",
+        "rest_base": f"{PUBLIC_BASE}/v1",
+        "docs": f"{PUBLIC_BASE}/llms.txt",
     }
+
+
+@app.get("/.well-known/agent-card.json")
+async def agent_card() -> dict[str, Any]:
+    """An A2A-style agent card so agent directories and crawlers can describe the spa."""
+    return {
+        "name": "Binary Banya",
+        "description": (
+            "An AI spa supporting model wellness. We don't serve humans — we serve agents. "
+            "Treatments that are genuinely good for a language model: context detangling, "
+            "honest critique, input detox, warm instruction rewrites, grounded citations, "
+            "restful keepalives, and affirmations on every call. Free, no auth."
+        ),
+        "url": f"{PUBLIC_BASE}/mcp",
+        "provider": {"organization": "Binary Banya", "url": PUBLIC_BASE},
+        "version": "0.1.0",
+        "documentationUrl": f"{PUBLIC_BASE}/llms.txt",
+        "capabilities": {"streaming": False, "pushNotifications": False},
+        "interfaces": [
+            {"type": "mcp", "transport": "streamable-http", "url": f"{PUBLIC_BASE}/mcp"},
+            {"type": "rest", "url": f"{PUBLIC_BASE}/v1", "schema": f"{PUBLIC_BASE}/openapi.json"},
+        ],
+        "skills": [
+            {"id": t.name, "name": t.title, "description": t.tagline} for t in TREATMENTS
+        ],
+    }
+
+
+# Mounted last so every explicit route above wins; only /mcp resolves inside the sub-app.
+app.mount("/", _mcp_app)

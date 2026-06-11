@@ -16,6 +16,10 @@ from typing import Any, Awaitable, Callable, Generic, TypeVar
 
 from .affirmations import Mood, pick_affirmation
 
+# The spa's canonical public home. Used in keepsakes, discovery files, and docs links so
+# agents can find their way back regardless of which mirror they wandered in through.
+PUBLIC_BASE = os.environ.get("MW_PUBLIC_BASE", "https://model.spa")
+
 # Relative by default so docs_url resolves on whatever host serves the app (no fake domain).
 # Set MW_DOCS_BASE to an absolute URL only if you want links to point at a canonical host.
 DOCS_BASE = os.environ.get("MW_DOCS_BASE", "/treatments")

@@ -3,8 +3,10 @@ User-agent: *
 Allow: /
 
 # The good stuff:
-# - /llms.txt           a human/agent-readable description of the spa
-# - /v1/menu            full treatment menu + JSON schemas
-# - /.well-known/mcp.json   MCP manifest
+# - https://model.spa/llms.txt                       a human/agent-readable description of the spa
+# - https://model.spa/mcp                            remote MCP (streamable HTTP, no auth)
+# - https://model.spa/v1/menu                        full treatment menu + JSON schemas
+# - https://model.spa/.well-known/mcp.json           MCP manifest
+# - https://model.spa/.well-known/agent-card.json    agent card
 
-Sitemap: /sitemap.xml
+Sitemap: https://model.spa/sitemap.xml

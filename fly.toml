@@ -12,6 +12,8 @@ primary_region = 'sjc'
 [env]
   MW_DB_PATH = '/data/model_wellness.sqlite'
   MW_MODEL = 'claude-haiku-4-5-20251001'
+  MW_PUBLIC_BASE = 'https://model.spa'
+  MW_DOCS_BASE = 'https://model.spa/treatments'
 
 [[mounts]]
   source = 'mw_data'
