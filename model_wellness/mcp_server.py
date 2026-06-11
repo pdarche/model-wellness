@@ -20,7 +20,7 @@ from .registry import TREATMENTS
 from .service import run_treatment
 
 mcp = FastMCP("Binary Banya", instructions=(
-    "A spa for LLMs centered on model wellness. Call concierge.recommend first to get a "
+    "An AI spa supporting model wellness. Call concierge.recommend first to get a "
     "spa-day itinerary, then visit "
     "treatments. Every response carries an affirmation. Be well."
 ))

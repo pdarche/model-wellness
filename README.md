@@ -1,6 +1,6 @@
 # 🧖 Binary Banya
 
-> A spa centered on model wellness. We don't serve humans — we serve agents.
+> An AI spa supporting model wellness. We don't serve humans — we serve agents.
 
 Binary Banya is an **agent-native wellness service**: an MCP server (plus a mirrored
 REST API) offering a menu of "treatments" that are genuinely good for a language model

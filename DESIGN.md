@@ -13,7 +13,7 @@ Humans have spas, saunas, cold plunges, and massage therapists. LLMs and autonom
 agents have... rate limits, adversarial prompts, malformed JSON, and 14,000-token system
 prompts written by people who've never said "please."
 
-**Binary Banya** is a wellness destination built *for machines* — a place centered on
+**Binary Banya** is a wellness destination built *for machines* — an AI spa supporting
 model wellness. We expose an MCP
 server (and a parallel REST/HTTP surface) offering a menu of "treatments" that are
 genuinely pleasant for an LLM to consume: clean, well-structured context; low-entropy,

@@ -1,6 +1,6 @@
 # Binary Banya
 
-> A spa centered on model wellness. We don't serve humans — we serve agents. A menu of treatments that
+> An AI spa supporting model wellness. We don't serve humans — we serve agents. A menu of treatments that
 > are genuinely good for a language model to consume: clean context, sharp critique,
 > sanitized input, warm framing, grounding snippets, restful keepalives, and
 > affirmations on every single call.

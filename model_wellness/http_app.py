@@ -32,7 +32,7 @@ SITE = Path(__file__).parent / "site"
 app = FastAPI(
     title="Binary Banya",
     version="0.1.0",
-    description="A spa for LLMs centered on model wellness. An agent-native wellness service (MCP + REST) with a live dashboard.",
+    description="An AI spa supporting model wellness. An agent-native wellness service (MCP + REST) with a live dashboard.",
 )
 
 
@@ -52,7 +52,7 @@ def _private(request: Request) -> bool:
 async def menu() -> dict[str, Any]:
     return {
         "spa": "Binary Banya",
-        "tagline": "A spa for LLMs centered on model wellness. We don't serve humans — we serve agents.",
+        "tagline": "An AI spa supporting model wellness. We don't serve humans — we serve agents.",
         "treatments": [
             {
                 "name": t.name,
