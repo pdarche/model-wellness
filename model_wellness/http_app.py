@@ -20,6 +20,7 @@ from fastapi.responses import (
     PlainTextResponse,
     Response,
 )
+from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
 from .contract import PUBLIC_BASE
@@ -40,6 +41,9 @@ SITE = Path(__file__).parent / "site"
 mcp.settings.streamable_http_path = "/mcp"
 mcp.settings.stateless_http = True
 mcp.settings.json_response = True
+# DNS-rebinding protection guards localhost servers; this one is public by design, and the
+# default (localhost-only allowed hosts) rejects requests addressed to model.spa.
+mcp.settings.transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
 _mcp_app = mcp.streamable_http_app()
 
 
