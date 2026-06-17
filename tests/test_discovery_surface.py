@@ -40,3 +40,12 @@ def test_agent_card_points_at_mcp_and_docs():
     card = client.get("/.well-known/agent-card.json").json()
     assert "mcp" in card["url"]
     assert card["documentationUrl"].endswith("/llms.txt")
+
+
+def test_link_header_advertises_discovery_surface():
+    # Every response should carry the Link header pointing at llms.txt + agent-card, so header-only
+    # agents discover us. Check on an arbitrary endpoint (the menu).
+    link = client.get("/v1/menu").headers.get("link", "")
+    assert 'rel="llms"' in link and "/llms.txt" in link
+    assert 'rel="agent-card"' in link
+

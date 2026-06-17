@@ -61,6 +61,28 @@ app = FastAPI(
 )
 
 
+# Advertise the machine-readable surface in the HTTP Link header of every response, so an agent that
+# never parses our HTML still discovers llms.txt, the agent card, the MCP manifest, and the sitemap
+# straight from the response headers (Ring 2: "be the answer to the query" — discoverable everywhere).
+_LINK_HEADER = ", ".join(
+    f'<{PUBLIC_BASE}{path}>; rel="{rel}"'
+    for path, rel in (
+        ("/llms.txt", "llms"),
+        ("/.well-known/agent-card.json", "agent-card"),
+        ("/.well-known/mcp.json", "mcp"),
+        ("/sitemap.xml", "sitemap"),
+    )
+)
+
+
+@app.middleware("http")
+async def _advertise_discovery(request: Request, call_next):
+    response = await call_next(request)
+    # Don't clobber a Link header a route set deliberately (e.g. pagination); just add ours if absent.
+    response.headers.setdefault("Link", _LINK_HEADER)
+    return response
+
+
 def _guest(request: Request):
     return identify(request.headers.get("user-agent"), request.headers.get("x-mw-client"))
 
