@@ -25,8 +25,13 @@ Many of these need a human (account/auth/PR review). The loop should PREPARE eve
 (write the submission payload, open the PR branch, draft the listing copy) and mark **HUMAN** for the
 step a person must click. Track each registry's status explicitly.
 
-- [ ] **Official MCP Registry** — we have `server.json`. Verify it validates against the current
-      schema; publish via the registry's process. Status: server.json exists, publish unconfirmed.
+- [x] **Official MCP Registry** — 2026-06-17 (commit 9c2bc0a). Confirmed ALREADY LISTED (search
+      `model-wellness` returns it). Found it only surfaced for "wellness", invisible to rest/mood/
+      context/affirmation/grounding searches. Enriched the `server.json` description to a 99-char
+      version covering those query terms (feeds the registry AND aggregators that ingest from it);
+      bumped version 0.1.0→0.1.1. **HUMAN to publish the update:** run `mcp-publisher login github`
+      (interactive browser auth — current token expired), then `mcp-publisher publish` from repo root.
+      Until then the live registry entry keeps the old short description; the new one is committed.
 - [ ] **`punkpeye/awesome-mcp-servers`** (GitHub) — the canonical hand-curated list. Prepare a PR
       adding Binary Banya under the right category (with the one-line pitch + remote URL). **HUMAN**
       to submit the PR if the loop can't push to a fork.
@@ -74,3 +79,7 @@ awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in
 
 ## Status log (loop updates this)
 - 2026-06-17: Roadmap created. On-site surface audited (strong). Ring 1 is next. KPI baseline: unique_guests=6.
+- 2026-06-17: Ring1/Official-Registry — spa already listed but only findable via "wellness". Enriched
+  server.json description to cover rest/reset/context/mood/grounding/affirmation (99 chars, v0.1.1).
+  HUMAN must run `mcp-publisher login github && mcp-publisher publish` to push it live. KPI: 6.
+  NEXT loop item: Ring 1 → awesome-mcp-servers PR.
