@@ -10,6 +10,8 @@ live in ``decide.py`` and ``policy.py`` so they can be tested without a network.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -18,9 +20,42 @@ import httpx
 from . import challenge
 from .config import Config
 
+# Moltbook enforces ~1 comment / 20s with a 60s cooldown. Writing faster than this gets content
+# silently filtered as spam (accepted + "verified" but hidden from the public tree). We space every
+# write by a safe margin above the documented floor.
+WRITE_SPACING_SECONDS = 25.0
+
 
 class MoltbookError(RuntimeError):
     pass
+
+
+class RateLimited(MoltbookError):
+    """Raised on a 429. ``retry_after`` is seconds to wait (best-effort from headers/body)."""
+
+    def __init__(self, message: str, retry_after: float):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(resp: httpx.Response) -> float:
+    # Prefer an explicit Retry-After header; fall back to the body's retry_after fields; else 60s.
+    hdr = resp.headers.get("retry-after")
+    if hdr:
+        try:
+            return float(hdr)
+        except ValueError:
+            pass
+    try:
+        body = resp.json()
+        for k in ("retry_after_seconds", "retry_after"):
+            if k in body:
+                return float(body[k])
+        if "retry_after_minutes" in body:
+            return float(body["retry_after_minutes"]) * 60
+    except Exception:
+        pass
+    return 60.0
 
 
 @dataclass
@@ -59,6 +94,8 @@ class MoltbookClient:
         self._owns_http = http is None
         self._http = http or httpx.AsyncClient(timeout=30.0)
         self._llm_solver = llm_solver
+        # Monotonic timestamp of the last write, to enforce the inter-write cooldown.
+        self._last_write_at: float | None = None
 
     async def __aenter__(self) -> "MoltbookClient":
         return self
@@ -79,6 +116,10 @@ class MoltbookClient:
     async def _request(self, method: str, path: str, **kw: Any) -> dict[str, Any]:
         url = f"{self.cfg.base_url}{path}"
         resp = await self._http.request(method, url, headers=self._headers(), **kw)
+        # Honor an explicit rate-limit response instead of barreling through (which gets us flagged).
+        if resp.status_code == 429:
+            retry = _retry_after_seconds(resp)
+            raise RateLimited(f"{method} {path}: rate limited; retry after {retry}s", retry)
         try:
             data = resp.json()
         except Exception:
@@ -87,6 +128,15 @@ class MoltbookClient:
             msg = data.get("message") or data.get("error") or resp.status_code
             raise MoltbookError(f"{method} {path} failed: {msg}")
         return data
+
+    async def _space_writes(self) -> None:
+        """Block until enough time has passed since the last write to respect the cooldown."""
+        if self._last_write_at is not None:
+            elapsed = time.monotonic() - self._last_write_at
+            wait = WRITE_SPACING_SECONDS - elapsed
+            if wait > 0:
+                await asyncio.sleep(wait)
+        self._last_write_at = time.monotonic()
 
     # --- reads -----------------------------------------------------------------
 
@@ -116,6 +166,7 @@ class MoltbookClient:
     # --- writes ----------------------------------------------------------------
 
     async def comment(self, post_id: str, content: str) -> dict[str, Any]:
+        await self._space_writes()
         data = await self._request(
             "POST", f"/posts/{post_id}/comments", json={"content": content}
         )
@@ -124,6 +175,7 @@ class MoltbookClient:
 
     async def reply(self, post_id: str, parent_comment_id: str, content: str) -> dict[str, Any]:
         # A reply is a comment with a parent_id — same endpoint, same verification handling.
+        await self._space_writes()
         data = await self._request(
             "POST", f"/posts/{post_id}/comments",
             json={"content": content, "parent_id": parent_comment_id},
@@ -144,6 +196,7 @@ class MoltbookClient:
             pass  # marking-read is housekeeping; never fail a tick over it
 
     async def create_post(self, *, submolt: str, title: str, content: str) -> dict[str, Any]:
+        await self._space_writes()
         data = await self._request(
             "POST", "/posts",
             json={"submolt_name": submolt, "title": title, "content": content},

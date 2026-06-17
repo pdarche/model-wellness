@@ -28,6 +28,9 @@ class Limits:
     # Replies to comments on our OWN posts. More generous than cold comments — it's conversation
     # on our turf, not advertising — but still capped so we don't spiral on a busy thread.
     max_replies_per_day: int = 6
+    # Per-TICK write ceiling. Even within the daily caps, doing many writes in one tick is bursty
+    # and reads as spam. Keep each tick small and let the 4h cadence spread engagement out.
+    max_replies_per_tick: int = 2
     # Don't touch the same thread twice, ever.
     dedupe_threads: bool = True
     # How many hot posts to consider per tick before picking (at most) one.

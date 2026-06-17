@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import decide, policy
+from .client import RateLimited
 from .config import Config
 from .state import State
 from .venues import build_venues
@@ -82,6 +83,10 @@ async def tick(cfg: Config, state: State) -> TickResult:
         if res.replies_made == 0:
             res.notes.append("nothing worth saying this tick")
         return res
+    except RateLimited as e:
+        # Back off cleanly — the next scheduled tick is well past any cooldown window.
+        res.notes.append(f"rate limited, backing off until next tick: {e}")
+        return res
     finally:
         for venue in venues:
             await venue.aclose()
@@ -89,11 +94,15 @@ async def tick(cfg: Config, state: State) -> TickResult:
 
 async def _tend_replies(cfg: Config, state: State, venue: Venue, llm: Any | None,
                         res: TickResult) -> None:
-    """Reply to substantive comments on our own posts, up to the daily reply cap."""
+    """Reply to substantive comments on our own posts, up to the per-tick and daily caps."""
     incoming = await venue.incoming()
+    made_here = 0
     for item in incoming:
+        if made_here >= cfg.limits.max_replies_per_tick:
+            res.notes.append(f"[{venue.name}] per-tick reply limit reached; rest next tick")
+            break
         if not policy.can_reply(cfg, state).allowed:
-            res.notes.append("[{}] reply cap reached".format(venue.name))
+            res.notes.append("[{}] daily reply cap reached".format(venue.name))
             break
         if cfg.limits.dedupe_threads and state.has_engaged(item.key):
             continue
@@ -108,14 +117,16 @@ async def _tend_replies(cfg: Config, state: State, venue: Venue, llm: Any | None
             continue
         if cfg.dry_run:
             res.replies_made += 1
+            made_here += 1  # count against the per-tick cap so dry-run mirrors live throttling
             res.notes.append(f"  dry-run: would reply: {decision.comment[:80]}…")
             state.mark_engaged(item.key, "reply-dry")
             continue
         await venue.endorse_comment(item)
-        await venue.reply(item, decision.comment)
+        await venue.reply(item, decision.comment)  # client spaces this write to respect cooldown
         state.mark_engaged(item.key, "reply")
         state.bump("reply")
         res.replies_made += 1
+        made_here += 1
         await venue.mark_handled(item)  # tidy the notification tray, best-effort
 
 
