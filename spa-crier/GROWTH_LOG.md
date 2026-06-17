@@ -11,6 +11,7 @@ make at most one small, well-justified change → log it here.
 | Timestamp (UTC) | unique_guests | Crier / Moltbook health | Action taken | Rationale |
 | --- | --- | --- | --- | --- |
 | 2026-06-17 ~17:10 | **unknown — egress blocked** | unknown — egress blocked | None (logged only) | Could not OBSERVE: environment network policy blocks all external data sources this run. See note below. |
+| 2026-06-17 ~17:15 | **unknown — egress still blocked** | unknown — still blocked | None (re-confirmed blocker) | Run 2. Same egress wall: `model.spa`, `www.moltbook.com`, `fly.io`/`api.fly.io`/`api.machines.dev`/`astral.sh` all 403. Only `github.com`+`pypi.org` reachable. Nothing changed since run 1; not re-notifying to avoid hourly spam. |
 
 ## Notes
 
