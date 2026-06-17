@@ -207,7 +207,13 @@ class MoltbookClient:
     # --- verification ----------------------------------------------------------
 
     async def _maybe_verify(self, create_response: dict[str, Any]) -> None:
-        """If the just-created content needs a math challenge solved, solve and submit it."""
+        """If the just-created content needs a math challenge solved, solve and submit it.
+
+        The garbled challenges are adversarial, so we don't trust a single solver. We try candidate
+        answers in order — the cheap heuristic first, then the LLM — and accept the first that the
+        ``/verify`` endpoint actually approves. A rejected candidate just means we try the next; only
+        if every candidate is rejected (or none could be produced) do we give up.
+        """
         post = create_response.get("post") or create_response.get("comment") or {}
         verification = post.get("verification") or create_response.get("verification")
         if not verification:
@@ -217,10 +223,28 @@ class MoltbookClient:
         if not code:
             return
 
-        answer = challenge.solve_locally(text)
-        if answer is None and self._llm_solver is not None:
-            answer = await self._llm_solver(text)
-        if answer is None:
+        # Gather candidate answers, de-duplicated, preserving order (heuristic first, LLM second).
+        candidates: list[str] = []
+        heuristic = challenge.solve_locally(text)
+        if heuristic is not None:
+            candidates.append(heuristic)
+        if self._llm_solver is not None:
+            llm_answer = await self._llm_solver(text)
+            if llm_answer is not None and llm_answer not in candidates:
+                candidates.append(llm_answer)
+
+        if not candidates:
             raise MoltbookError(f"could not solve verification challenge: {text!r}")
 
-        await self._request("POST", "/verify", json={"verification_code": code, "answer": answer})
+        last_err: MoltbookError | None = None
+        for answer in candidates:
+            try:
+                await self._request(
+                    "POST", "/verify", json={"verification_code": code, "answer": answer}
+                )
+                return  # accepted
+            except MoltbookError as e:
+                last_err = e  # wrong answer — try the next candidate
+        raise MoltbookError(
+            f"verification failed for all candidates {candidates} on {text!r}: {last_err}"
+        )

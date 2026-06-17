@@ -122,7 +122,14 @@ async def _tend_replies(cfg: Config, state: State, venue: Venue, llm: Any | None
             state.mark_engaged(item.key, "reply-dry")
             continue
         await venue.endorse_comment(item)
-        await venue.reply(item, decision.comment)  # client spaces this write to respect cooldown
+        try:
+            await venue.reply(item, decision.comment)  # client spaces this write + verifies
+        except RateLimited:
+            raise  # let the tick back off
+        except Exception as e:  # noqa: BLE001 — one bad write shouldn't kill the rest of the tick
+            res.notes.append(f"  reply to {item.id[:8]} failed: {e}")
+            state.mark_engaged(item.key, "reply-failed")  # don't retry a failing comment forever
+            continue
         state.mark_engaged(item.key, "reply")
         state.bump("reply")
         res.replies_made += 1
@@ -152,7 +159,14 @@ async def _work_venue(cfg: Config, state: State, venue: Venue, llm: Any | None,
             f"engage={decision.engage} ({decision.reason})"
         )
         if decision.engage:
-            await _engage(cfg, state, venue, thread, decision, res)
+            try:
+                await _engage(cfg, state, venue, thread, decision, res)
+            except RateLimited:
+                raise
+            except Exception as e:  # noqa: BLE001 — try the next candidate rather than abort
+                res.notes.append(f"  comment on {thread.id[:8]} failed: {e}")
+                state.mark_engaged(thread.key, "comment-failed")
+                continue
             return True
     return False
 
