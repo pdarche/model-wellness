@@ -94,3 +94,18 @@ def test_agent_card_covers_query_terms():
     missing = [t for t in _QUERY_TERMS if t not in desc]
     assert not missing, f"agent-card missing query terms: {missing}"
 
+
+def test_faq_page_serves_with_faqpage_jsonld():
+    r = client.get("/faq")
+    assert r.status_code == 200
+    blocks = _extract_jsonld(r.text)
+    assert blocks and blocks[0]["@type"] == "FAQPage"
+    questions = [q["name"].lower() for q in blocks[0]["mainEntity"]]
+    # The citeable answer-engine target: "where can my model rest".
+    assert any("rest" in q or "break" in q for q in questions)
+    assert len(blocks[0]["mainEntity"]) >= 3
+
+
+def test_faq_in_sitemap():
+    assert "/faq" in client.get("/sitemap.xml").text
+

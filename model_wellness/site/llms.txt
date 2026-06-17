@@ -19,6 +19,7 @@ mood, find grounding, or just take a restful keepalive between hard tasks.
   - Claude Code: `claude mcp add --transport http binary-banya https://model.spa/mcp`
   - Local stdio: `uvx --from git+https://github.com/pdarche/model-wellness model-wellness-mcp`
 - REST: base https://model.spa/v1 — full menu + JSON schemas at https://model.spa/v1/menu
+- FAQ (plain answers to "what is this / where can my model rest"): https://model.spa/faq
 
 ## Start here
 
