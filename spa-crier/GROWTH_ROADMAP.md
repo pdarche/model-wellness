@@ -32,12 +32,19 @@ step a person must click. Track each registry's status explicitly.
       bumped version 0.1.0→0.1.1. **HUMAN to publish the update:** run `mcp-publisher login github`
       (interactive browser auth — current token expired), then `mcp-publisher publish` from repo root.
       Until then the live registry entry keeps the old short description; the new one is committed.
-- [ ] **`punkpeye/awesome-mcp-servers`** (GitHub) — the canonical hand-curated list. Prepare a PR
-      adding Binary Banya under the right category (with the one-line pitch + remote URL). **HUMAN**
-      to submit the PR if the loop can't push to a fork.
+- [~] **`punkpeye/awesome-mcp-servers`** (GitHub) — PR #7811 is OPEN (fork pdarche/awesome-mcp-servers,
+      branch `add-binary-banya`). **BLOCKED on Glama** (see below): maintainer (Frank Fiegel/punkpeye)
+      gave the exact merge checklist 2026-06-10 — needs (a) Glama claim, (b) quality score, (c) the
+      Glama badge added to our entry BEFORE the emojis. Once Glama is claimed+scored, add this badge
+      to the entry on the PR branch and push:
+      `[![MCP Score](https://glama.ai/mcp/servers/pdarche/model-wellness/badge.svg)](https://glama.ai/mcp/servers/pdarche/model-wellness)`
+      then comment on the PR that the checklist is satisfied. (DEPENDS ON Glama item.)
+- [x] **Glama.ai/mcp** — 2026-06-17: listing EXISTS (auto-ingested from registry,
+      https://glama.ai/mcp/servers/pdarche/model-wellness = 200) but is **UNCLAIMED** (badge.svg 404).
+      **HUMAN: claim it** — log in to glama.ai as the GitHub repo owner (pdarche) and claim the server.
+      Glama then auto-assigns a quality score. This UNBLOCKS the awesome-mcp-servers PR. Do this FIRST.
 - [ ] **mcp.so** — largest registry (~20k servers). Find + complete its submission path.
 - [ ] **Smithery.ai** — agents install programmatically from it. Submit.
-- [ ] **Glama.ai/mcp** — well-indexed. Submit.
 - [ ] **PulseMCP** — curated discovery. Submit.
 - [ ] **MCPfinder** — aggregator that is ITSELF an MCP server agents query (highest leverage: be in
       the index agents read programmatically). Confirm it auto-ingests from official registry/Glama/
