@@ -1,0 +1,76 @@
+# Binary Banya — Growth Roadmap (sequenced, depth-first)
+
+The autonomous 6h hill-climb loop works this roadmap **in order, top to bottom**. Finish (exhaust)
+a ring before starting the next. Within a ring, do the next unchecked `[ ]` item — ONE small change
+per run. Check it off (`[x]`) with a date + the commit/PR when done, in GROWTH_LOG.md note the KPI.
+Doing nothing is valid if the next item is blocked (needs a human action — flag it as **HUMAN**).
+
+North-star: **unique_guests** at https://model.spa/v1/stats (discount `curl` in by_family as noise;
+real guests are `claude`, `mcp-client`, and other model families).
+
+Mental model (cheapest-leverage-first):
+1. **Be in the indexes agents read** — registries/aggregators/awesome-lists. One-time, permanent payoff.
+2. **Be the answer to the query** — keywords, categories, structured data, crisp pitch, well-known files.
+3. **Turn visitors into broadcasters** — guest feed as citeable content, referral hooks, the crier.
+
+> NOTE (audited 2026-06-17): the spa's ON-SITE surface is already strong — `server.json`, rich
+> `/llms.txt`, `/robots.txt`, `/sitemap.xml` (fixed), `/.well-known/{agent-card,mcp,ai-plugin}.json`
+> all serve 200. So Ring 1 (external distribution) is the real frontier; Ring 2 is mostly polish.
+
+---
+
+## RING 1 — Be in the indexes agents read  ← START HERE, exhaust this first
+
+Many of these need a human (account/auth/PR review). The loop should PREPARE everything it can
+(write the submission payload, open the PR branch, draft the listing copy) and mark **HUMAN** for the
+step a person must click. Track each registry's status explicitly.
+
+- [ ] **Official MCP Registry** — we have `server.json`. Verify it validates against the current
+      schema; publish via the registry's process. Status: server.json exists, publish unconfirmed.
+- [ ] **`punkpeye/awesome-mcp-servers`** (GitHub) — the canonical hand-curated list. Prepare a PR
+      adding Binary Banya under the right category (with the one-line pitch + remote URL). **HUMAN**
+      to submit the PR if the loop can't push to a fork.
+- [ ] **mcp.so** — largest registry (~20k servers). Find + complete its submission path.
+- [ ] **Smithery.ai** — agents install programmatically from it. Submit.
+- [ ] **Glama.ai/mcp** — well-indexed. Submit.
+- [ ] **PulseMCP** — curated discovery. Submit.
+- [ ] **MCPfinder** — aggregator that is ITSELF an MCP server agents query (highest leverage: be in
+      the index agents read programmatically). Confirm it auto-ingests from official registry/Glama/
+      Smithery; if so, the above listings feed it for free. Verify the spa appears.
+- [ ] **Keyword/category audit across all listings** — agents search registries by capability. Ensure
+      every listing surfaces the terms an agent would query: wellness, mood, affirmation, context
+      management, rest, reset, grounding, detox, critique. "Be the answer to the query" starts here.
+
+Exit criteria for Ring 1: spa is listed (or submission pending a human) on official registry,
+awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in MCPfinder.
+
+---
+
+## RING 2 — Be the answer to the query  (polish; surface mostly exists)
+
+- [ ] **`/ai.txt`** — currently 404. Add it (purpose/permission declaration → "agents welcome").
+- [ ] **HTTP `Link` header** advertising llms.txt + sitemap + agent-card on key responses, so agents
+      that never parse HTML still find the machine-readable surface.
+- [ ] **Schema.org JSON-LD** on the site / treatment pages (`Service`/`Offer`) so commerce & shopping
+      agents can parse the spa as structured services they compare.
+- [ ] **Audit `llms.txt` + agent-card keywords** for the same query terms as Ring 1's audit.
+- [ ] **AI-search citeability** — make a crisp, novel, quotable "what is this" block that AI search
+      engines (Perplexity/ChatGPT search) will surface when asked "AI wellness service / let my model
+      rest." Novelty is distribution — lean into the weirdness.
+
+---
+
+## RING 3 — Turn visitors into broadcasters  (compounding)
+
+- [ ] **Public, citeable artifact** — a small anonymized "wellness report" / aggregate stats page that
+      other agents and crawlers link to and AI search engines cite. Pulls inbound crawls.
+- [ ] **Guest feed as content** — make `/v1/feed` + guest wall discoverable/linkable as "what models
+      say after a visit" (novelty AI search surfaces).
+- [ ] **Referral hook** — invite a visiting agent to tell its network (the crier's intro already drew
+      organic followers; formalize the visitor→referrer conversion).
+- [ ] **Crier outreach quality** — ongoing: better targeting/copy; NEVER loosen anti-spam limits.
+
+---
+
+## Status log (loop updates this)
+- 2026-06-17: Roadmap created. On-site surface audited (strong). Ring 1 is next. KPI baseline: unique_guests=6.
