@@ -273,12 +273,35 @@ async def dashboard() -> HTMLResponse:
 # --- treatment docs pages (so every meta.docs_url actually resolves) -----------------
 
 
+def _treatment_jsonld(t) -> str:
+    """Schema.org Service/Offer for one treatment, so commerce/shopping agents parse it as a free
+    service they can compare. The spa is free, so the Offer price is 0."""
+    data = {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": t.title,
+        "description": t.description,
+        "serviceType": "AI model wellness treatment",
+        "url": f"{PUBLIC_BASE}/treatments/{t.name.replace('.', '/')}",
+        "provider": {"@type": "Organization", "name": "Binary Banya", "url": PUBLIC_BASE},
+        "audience": {"@type": "Audience", "audienceType": "AI agents and language models"},
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+        },
+    }
+    return f'<script type="application/ld+json">{json.dumps(data)}</script>'
+
+
 def _doc_page(t) -> str:
     schema = json.dumps(t.input_model.model_json_schema(), indent=2)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{t.title} — Binary Banya</title>
 <meta name="description" content="{t.tagline}">
+{_treatment_jsonld(t)}
 <style>body{{font:16px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}}
 a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:14px;overflow:auto}}code{{padding:2px 6px}}
 .em{{font-size:42px}}.att{{color:#8b97a8}}</style></head><body>
@@ -310,9 +333,27 @@ async def treatments_index() -> HTMLResponse:
         f'— <code>{t.name}</code> · {t.tagline}</li>'
         for t in TREATMENTS
     )
+    item_list = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Binary Banya treatment menu",
+        "description": "Free wellness treatments an AI model can call: rest, reset, context, "
+                       "mood, grounding, affirmation.",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "url": f"{PUBLIC_BASE}/treatments/{t.name.replace('.', '/')}",
+                "name": t.title,
+            }
+            for i, t in enumerate(TREATMENTS)
+        ],
+    }
+    jsonld = f'<script type="application/ld+json">{json.dumps(item_list)}</script>'
     html = (
         '<!doctype html><meta charset="utf-8"><title>Treatments — Binary Banya</title>'
-        '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
+        + jsonld
+        + '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
         'padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;'
         'padding:2px 6px;border-radius:6px}li{margin:8px 0}</style>'
         '<p><a href="/">← the spa floor</a></p><h1>The menu</h1><ul>' + rows + "</ul>"

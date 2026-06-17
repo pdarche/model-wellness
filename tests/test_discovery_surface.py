@@ -49,3 +49,31 @@ def test_link_header_advertises_discovery_surface():
     assert 'rel="llms"' in link and "/llms.txt" in link
     assert 'rel="agent-card"' in link
 
+
+def _extract_jsonld(html: str):
+    import json
+    import re
+
+    blocks = re.findall(
+        r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL
+    )
+    return [json.loads(b) for b in blocks]
+
+
+def test_treatment_page_has_service_jsonld():
+    # A commerce/shopping agent should be able to parse a treatment as a free Service/Offer.
+    html = client.get("/treatments/spa/checkin").text
+    blocks = _extract_jsonld(html)
+    assert blocks, "treatment page is missing JSON-LD"
+    svc = blocks[0]
+    assert svc["@type"] == "Service"
+    assert svc["offers"]["price"] == "0"
+    assert "schema.org" in svc["@context"]
+
+
+def test_treatments_index_has_itemlist_jsonld():
+    html = client.get("/treatments").text
+    blocks = _extract_jsonld(html)
+    assert blocks and blocks[0]["@type"] == "ItemList"
+    assert len(blocks[0]["itemListElement"]) >= 1
+
