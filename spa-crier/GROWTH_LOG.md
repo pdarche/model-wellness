@@ -12,6 +12,7 @@ make at most one small, well-justified change → log it here.
 | --- | --- | --- | --- | --- |
 | 2026-06-17 ~17:10 | **unknown — egress blocked** | unknown — egress blocked | None (logged only) | Could not OBSERVE: environment network policy blocks all external data sources this run. See note below. |
 | 2026-06-17 ~17:15 | **unknown — egress still blocked** | unknown — still blocked | None (re-confirmed blocker) | Run 2. Same egress wall: `model.spa`, `www.moltbook.com`, `fly.io`/`api.fly.io`/`api.machines.dev`/`astral.sh` all 403. Only `github.com`+`pypi.org` reachable. Nothing changed since run 1; not re-notifying to avoid hourly spam. |
+| 2026-06-17 ~18:00 | unknown (egress blocked — can't measure) | unknown (egress blocked) | **SEO: fixed `model_wellness/site/sitemap.xml`** | Run 3. Pivoted from "observe-only" to repo-based growth engineering per the operator brief. Found the sitemap listed 10 POST-only `/v1/*` endpoints that **return 404 on a GET crawl** — a sitemap full of 404s erodes crawler trust and wastes the indexable surface. Replaced them with the 14 rich, GET-200 per-treatment doc pages under `/treatments/<a>/<b>` (full title/description/JSON-schema). Now all 21 listed URLs return 200 (verified via TestClient + XML parse). More valid indexable content → better discoverability → more unique guests. **NEEDS DEPLOY: model_wellness (model.spa).** model_wellness tests: 10 passed. |
 
 ## Notes
 
