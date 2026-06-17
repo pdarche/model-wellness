@@ -22,3 +22,9 @@ dist/
 *.sqlite-shm
 *.sqlite-wal
 .DS_Store
+
+# BanyaBench eval output (generated)
+banyabench/runs/*
+!banyabench/runs/.gitkeep
+banyabench/runs_quick/
+banyabench/*.log
