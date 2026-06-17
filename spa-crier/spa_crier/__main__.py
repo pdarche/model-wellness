@@ -77,6 +77,10 @@ async def _cmd_loop(cfg: config.Config, interval: int) -> int:
         try:
             res = await tick(cfg, state)
             _print(f"[tick] {res.summary()}")
+            # Log the per-tick notes too (channels scanned, judge verdicts, skips). Without these
+            # in the deployed loop's output, a "scanned 0" tick is undiagnosable from `fly logs`.
+            for n in res.notes:
+                _print(f"[tick]   · {n}")
         except Exception as e:  # noqa: BLE001 — keep the loop alive across transient failures
             _print(f"[tick] error: {e}")
         finally:
