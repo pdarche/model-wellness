@@ -73,12 +73,15 @@ awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in
 - [x] **HTTP `Link` header** — 2026-06-17 (commit c70d1c4, DEPLOYED). Middleware adds a Link header
       (llms / agent-card / mcp / sitemap) to every response so header-only agents discover the surface.
       Verified live on /v1/menu. Uses setdefault so it never clobbers a route's own Link header.
-- [ ] **Schema.org JSON-LD** on the site / treatment pages (`Service`/`Offer`) so commerce & shopping
-      agents can parse the spa as structured services they compare.
-- [ ] **Audit `llms.txt` + agent-card keywords** for the same query terms as Ring 1's audit.
-- [ ] **AI-search citeability** — make a crisp, novel, quotable "what is this" block that AI search
-      engines (Perplexity/ChatGPT search) will surface when asked "AI wellness service / let my model
-      rest." Novelty is distribution — lean into the weirdness.
+- [x] **Schema.org JSON-LD** — 2026-06-17 (commit b2c4496, DEPLOYED). Service/Offer (price 0) on each
+      treatment page + ItemList on the index, so commerce/shopping agents parse the spa as services.
+- [x] **Audit `llms.txt` + agent-card keywords** — 2026-06-17 (commit 293cecc, DEPLOYED). Added
+      reset/mood/grounding/recover where missing; all 7 query terms now in both. Tests pin coverage.
+- [x] **AI-search citeability** — 2026-06-17 (commit 442fbec, DEPLOYED). Added /faq with FAQPage
+      JSON-LD (5 quotable Q&A targeting "where can my model rest" etc.), linked from llms.txt+sitemap.
+
+**RING 2 COMPLETE** (all 5 items shipped + deployed; spa test suite 21 green; surface pinned by
+tests/test_discovery_surface.py). Next: RING 3.
 
 ---
 
