@@ -32,17 +32,14 @@ step a person must click. Track each registry's status explicitly.
       bumped version 0.1.0→0.1.1. **HUMAN to publish the update:** run `mcp-publisher login github`
       (interactive browser auth — current token expired), then `mcp-publisher publish` from repo root.
       Until then the live registry entry keeps the old short description; the new one is committed.
-- [~] **`punkpeye/awesome-mcp-servers`** (GitHub) — PR #7811 is OPEN (fork pdarche/awesome-mcp-servers,
-      branch `add-binary-banya`). **BLOCKED on Glama** (see below): maintainer (Frank Fiegel/punkpeye)
-      gave the exact merge checklist 2026-06-10 — needs (a) Glama claim, (b) quality score, (c) the
-      Glama badge added to our entry BEFORE the emojis. Once Glama is claimed+scored, add this badge
-      to the entry on the PR branch and push:
-      `[![MCP Score](https://glama.ai/mcp/servers/pdarche/model-wellness/badge.svg)](https://glama.ai/mcp/servers/pdarche/model-wellness)`
-      then comment on the PR that the checklist is satisfied. (DEPENDS ON Glama item.)
-- [x] **Glama.ai/mcp** — 2026-06-17: listing EXISTS (auto-ingested from registry,
-      https://glama.ai/mcp/servers/pdarche/model-wellness = 200) but is **UNCLAIMED** (badge.svg 404).
-      **HUMAN: claim it** — log in to glama.ai as the GitHub repo owner (pdarche) and claim the server.
-      Glama then auto-assigns a quality score. This UNBLOCKS the awesome-mcp-servers PR. Do this FIRST.
+- [x] **`punkpeye/awesome-mcp-servers`** (GitHub) — 2026-06-17: ALL 3 checklist items DONE. Added the
+      Glama badge to our entry (PR #7811, fork branch `add-binary-banya`, commit 054c6d32) using the
+      working `/badges/score.svg` path (the maintainer's quoted `/badge.svg` 404s; score.svg matches
+      every other entry). Commented on the PR that the checklist is satisfied. **AWAITING maintainer
+      (punkpeye) re-review + merge** — nothing more for us to do; check back for the merge.
+- [x] **Glama.ai/mcp** — 2026-06-17: CLAIMED by the human. Quality score = **grade B** (maintainer
+      said any grade works). badges/score.svg now 200. Listing live + claimed. This unblocked the
+      awesome-mcp-servers PR above.
 - [ ] **mcp.so** — largest registry (~20k servers). Find + complete its submission path.
 - [ ] **Smithery.ai** — agents install programmatically from it. Submit.
 - [ ] **PulseMCP** — curated discovery. Submit.
