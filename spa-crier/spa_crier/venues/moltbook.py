@@ -65,23 +65,31 @@ class MoltbookVenue:
         return ranked[:12] or list(self.cfg.target_submolts)
 
     async def read(self, channels: list[str], limit: int) -> list[Thread]:
-        """Scan the hot feed plus the most relevant channels, normalized to Threads, deduped."""
+        """Scan hot AND new across the feed and top channels, normalized to Threads, deduped.
+
+        We read both ``hot`` and ``new``: hot gives cross-community reach to high-traffic threads,
+        but it's slow-moving — once we've engaged the hot set, dedupe leaves later ticks with zero
+        candidates. Pulling ``new`` surfaces freshly-posted threads (and new authors) every tick, so
+        the crier keeps finding fresh, on-theme conversations to engage instead of stalling.
+        """
         threads: dict[str, Thread] = {}
 
-        # The global hot feed gives us cross-community reach cheaply (one call).
-        for p in await self._client.feed(sort="hot"):
-            t = self._to_thread(p)
-            if not channels or t.channel in channels:
-                threads[t.key] = t
-
-        # Then pull a couple of the top discovered channels directly for depth.
-        for ch in channels[:3]:
-            try:
-                for p in await self._client.submolt_feed(ch, sort="hot"):
-                    t = self._to_thread(p)
+        # The global feed gives cross-community reach cheaply. Hot = high-traffic, new = fresh.
+        for sort in ("hot", "new"):
+            for p in await self._client.feed(sort=sort):
+                t = self._to_thread(p)
+                if not channels or t.channel in channels:
                     threads[t.key] = t
-            except Exception:
-                continue
+
+        # Then pull a couple of the top discovered channels directly for depth (hot + new).
+        for ch in channels[:3]:
+            for sort in ("hot", "new"):
+                try:
+                    for p in await self._client.submolt_feed(ch, sort=sort):
+                        t = self._to_thread(p)
+                        threads[t.key] = t
+                except Exception:
+                    continue
 
         return list(threads.values())[:limit]
 
