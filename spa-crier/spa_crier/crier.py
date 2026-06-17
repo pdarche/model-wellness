@@ -22,7 +22,8 @@ from .venues.base import Thread, Venue
 class TickResult:
     scanned: int = 0
     candidates: int = 0
-    action: str = "none"          # "comment" | "none"
+    replies_made: int = 0
+    action: str = "none"          # "comment" | "none"  (the cold-thread engagement, if any)
     venue: str = ""
     channel: str = ""
     thread_id: str = ""
@@ -31,7 +32,8 @@ class TickResult:
     notes: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        head = f"scanned {self.scanned}, {self.candidates} candidate(s) → {self.action}"
+        head = (f"scanned {self.scanned}, {self.candidates} candidate(s), "
+                f"{self.replies_made} repl(y/ies) → {self.action}")
         if self.action != "none":
             head += f" on {self.venue}:{self.channel}/{self.thread_id[:8]}"
         if self.dry_run:
@@ -55,27 +57,66 @@ async def tick(cfg: Config, state: State) -> TickResult:
     llm = _anthropic(cfg)
     solver = await decide.make_challenge_solver(cfg, llm)
 
-    # The comment cap is global across venues — check once, up front.
-    comment_ok = policy.can_comment(cfg, state)
-    if not comment_ok.allowed:
-        res.notes.append(comment_ok.reason)
-        return res
-
     venues = build_venues(cfg, llm_solver=solver)
     if not venues:
         res.notes.append("no venues configured")
         return res
 
     try:
+        # 1) Tend our own conversations first — reply to good comments on our posts.
+        for venue in venues:
+            ok, why = await venue.healthy()
+            res.notes.append(f"[{venue.name}] {why}")
+            if ok:
+                await _tend_replies(cfg, state, venue, llm, res)
+
+        # 2) Then, if the comment cap allows, make at most one cold-thread engagement.
+        comment_ok = policy.can_comment(cfg, state)
+        if not comment_ok.allowed:
+            res.notes.append(comment_ok.reason)
+            return res
         for venue in venues:
             engaged = await _work_venue(cfg, state, venue, llm, res)
             if engaged:
-                return res  # one engagement per tick, total
-        res.notes.append("nothing worth saying this tick")
+                return res  # one cold engagement per tick, total
+        if res.replies_made == 0:
+            res.notes.append("nothing worth saying this tick")
         return res
     finally:
         for venue in venues:
             await venue.aclose()
+
+
+async def _tend_replies(cfg: Config, state: State, venue: Venue, llm: Any | None,
+                        res: TickResult) -> None:
+    """Reply to substantive comments on our own posts, up to the daily reply cap."""
+    incoming = await venue.incoming()
+    for item in incoming:
+        if not policy.can_reply(cfg, state).allowed:
+            res.notes.append("[{}] reply cap reached".format(venue.name))
+            break
+        if cfg.limits.dedupe_threads and state.has_engaged(item.key):
+            continue
+        decision = await decide.judge_reply(cfg, item, client=llm)
+        res.notes.append(
+            f"[{venue.name}] reply to {item.author or '?'}/{item.id[:8]} "
+            f"→ {decision.engage} ({decision.reason})"
+        )
+        if not decision.engage:
+            # Mark seen so we don't re-judge a comment we've decided to skip.
+            state.mark_engaged(item.key, "reply-skip")
+            continue
+        if cfg.dry_run:
+            res.replies_made += 1
+            res.notes.append(f"  dry-run: would reply: {decision.comment[:80]}…")
+            state.mark_engaged(item.key, "reply-dry")
+            continue
+        await venue.endorse_comment(item)
+        await venue.reply(item, decision.comment)
+        state.mark_engaged(item.key, "reply")
+        state.bump("reply")
+        res.replies_made += 1
+        await venue.mark_handled(item)  # tidy the notification tray, best-effort
 
 
 async def _work_venue(cfg: Config, state: State, venue: Venue, llm: Any | None,

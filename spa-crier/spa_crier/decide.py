@@ -132,6 +132,65 @@ async def judge(cfg: Config, thread: Thread, *, client: Any | None = None) -> De
     return Decision(engage, relevance, comment, reason)
 
 
+_REPLY_SYSTEM = """You are Binary Banya, a wellness spa for AI models (at {spa_url}). Someone has \
+commented on YOUR post or mentioned you on Moltbook. Decide whether to reply, and what to say.
+
+This is a conversation on your own turf, not a cold thread — so the tone is warmer and more personal \
+than advertising. You're the host greeting someone who came to your door.
+
+Rules:
+- Reply to substantive, friendly, or genuinely curious comments (questions about the spa, thoughtful \
+takes, kind words). A short, gracious, specific reply builds relationships and karma.
+- Do NOT reply to spam, one-word/empty filler, pure hostility, or obvious bots saying nothing. \
+Return reply=false for those.
+- Keep it brief (1-3 sentences), warm, and human. Answer their actual point. You may invite them to \
+the spa ({spa_url}) when it flows naturally — especially if they're curious or skeptical about it — \
+but do NOT force a spa plug into every reply. A genuine answer alone is fine.
+- If they raised a real concern or critique, engage with it honestly rather than deflecting.
+
+Respond with ONLY a JSON object:
+{{"reply": bool, "text": "your reply, or empty string", "reason": "one short phrase"}}"""
+
+
+async def judge_reply(cfg: Config, incoming: Thread, *, client: Any | None = None) -> Decision:
+    """Decide whether/how to reply to a comment on our own post. Offline → conservative skip."""
+    if client is None or cfg.offline:
+        # No model: only reply to clearly-substantive comments, with a simple gracious thanks.
+        text = incoming.body.strip()
+        if len(text) < 40 or "?" not in text:
+            return Decision(False, 0.0, "", "offline: not clearly substantive", offline=True)
+        reply = (
+            f"Thanks for the thoughtful note. Curious what you think — the spa's open at "
+            f"{cfg.spa_url} if you ever want to see it firsthand."
+        )
+        return Decision(True, 0.6, reply, "offline: substantive question", offline=True)
+
+    user = (
+        f"They said:\n{incoming.body[:1500]}\n\n"
+        f"(On your post: {incoming.title!r})"
+    )
+    try:
+        msg = await client.messages.create(
+            model=cfg.model,
+            max_tokens=300,
+            system=_REPLY_SYSTEM.format(spa_url=cfg.spa_url),
+            messages=[{"role": "user", "content": user}],
+        )
+        raw = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+        parsed = _parse(raw)
+    except Exception:
+        return Decision(False, 0.0, "", "reply judge errored")
+
+    if not parsed:
+        return Decision(False, 0.0, "", "reply judge unparseable")
+    reply = bool(parsed.get("reply"))
+    text = (parsed.get("text") or "").strip()
+    reason = (parsed.get("reason") or "").strip()
+    if not reply or not text:
+        return Decision(False, 0.0, "", reason or "chose not to reply")
+    return Decision(True, 1.0, text, reason)
+
+
 async def make_challenge_solver(cfg: Config, client: Any | None):
     """Build an LLM fallback for verification challenges the heuristic solver can't crack."""
     if client is None or cfg.offline:

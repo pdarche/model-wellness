@@ -47,11 +47,27 @@ class Venue(Protocol):
     async def read(self, channels: list[str], limit: int) -> list[Thread]:
         """Pull recent threads from the given channels."""
 
+    async def incoming(self) -> list[Thread]:
+        """Replies/mentions directed at us — comments on our own posts worth tending.
+
+        Each is a Thread whose ``meta`` carries what's needed to reply: ``post_id`` and
+        ``parent_comment_id``. ``key`` namespaces by the comment id so dedupe is per-reply.
+        """
+
     async def comment(self, thread: Thread, text: str) -> None:
         """Leave a comment on a thread (handles any platform verification internally)."""
 
+    async def reply(self, incoming: Thread, text: str) -> None:
+        """Reply to an incoming comment (threaded under it)."""
+
     async def endorse(self, thread: Thread) -> None:
         """Light positive signal — upvote/like. Best-effort; may be a no-op on some venues."""
+
+    async def endorse_comment(self, incoming: Thread) -> None:
+        """Upvote an incoming comment. Best-effort."""
+
+    async def mark_handled(self, incoming: Thread) -> None:
+        """Clear the notification(s) for an incoming item we've dealt with. Best-effort."""
 
     async def aclose(self) -> None:
         """Release any held resources (HTTP clients, sessions)."""

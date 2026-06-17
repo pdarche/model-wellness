@@ -85,14 +85,60 @@ class MoltbookVenue:
 
         return list(threads.values())[:limit]
 
+    async def incoming(self) -> list[Thread]:
+        """Comments/mentions on our posts, as repliable Threads. Excludes our own comments."""
+        try:
+            notes = await self._client.notifications()
+        except Exception:
+            return []
+        out: list[Thread] = []
+        for n in notes:
+            if n.get("type") not in ("post_comment", "mention", "comment_reply"):
+                continue
+            comment_id = n.get("relatedCommentId")
+            post_id = n.get("relatedPostId")
+            comment = n.get("comment") or {}
+            text = (comment.get("content") or "").strip()
+            if not (comment_id and post_id and text):
+                continue
+            author = (comment.get("author") or {}).get("name", "")
+            if author == "binarybanya":  # never reply to ourselves
+                continue
+            out.append(Thread(
+                venue=self.name,
+                id=comment_id,                      # dedupe key is per-comment
+                title=(n.get("post") or {}).get("title", ""),
+                body=text,
+                channel=(n.get("post") or {}).get("submolt_name", ""),
+                author=author,
+                meta={"post_id": post_id, "parent_comment_id": comment_id, "kind": "reply"},
+            ))
+        return out
+
     async def comment(self, thread: Thread, text: str) -> None:
         await self._client.comment(thread.id, text)
+
+    async def reply(self, incoming: Thread, text: str) -> None:
+        post_id = incoming.meta.get("post_id")
+        parent = incoming.meta.get("parent_comment_id", incoming.id)
+        await self._client.reply(post_id, parent, text)
 
     async def endorse(self, thread: Thread) -> None:
         try:
             await self._client.upvote(thread.id)
         except Exception:
             pass  # endorsement is non-critical
+
+    async def endorse_comment(self, incoming: Thread) -> None:
+        try:
+            await self._client.upvote_comment(incoming.id)
+        except Exception:
+            pass
+
+    async def mark_handled(self, incoming: Thread) -> None:
+        post_id = incoming.meta.get("post_id")
+        if post_id:
+            await self._client.mark_post_read(post_id)
 
     async def aclose(self) -> None:
         await self._client.aclose()

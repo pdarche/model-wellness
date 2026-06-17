@@ -44,6 +44,7 @@ async def _cmd_status(cfg: config.Config) -> int:
         _print(f"model:   {cfg.model}  ({'offline-fallback' if cfg.offline else 'LLM on'})")
         _print(
             f"today:   {state.count_today('comment')}/{cfg.limits.max_comments_per_day} comments, "
+            f"{state.count_today('reply')}/{cfg.limits.max_replies_per_day} replies, "
             f"{state.count_today('post')}/{cfg.limits.max_posts_per_day} posts"
         )
         return 0

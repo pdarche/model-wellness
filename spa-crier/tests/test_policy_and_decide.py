@@ -37,6 +37,20 @@ def test_comment_cap_blocks_after_limit(cfg, state):
     assert not policy.can_comment(cfg, state).allowed
 
 
+def test_reply_cap_blocks_after_limit(cfg, state):
+    for _ in range(cfg.limits.max_replies_per_day):
+        assert policy.can_reply(cfg, state).allowed
+        state.bump("reply")
+    assert not policy.can_reply(cfg, state).allowed
+
+
+def test_reply_and_comment_caps_are_independent(cfg, state):
+    for _ in range(cfg.limits.max_comments_per_day):
+        state.bump("comment")
+    assert not policy.can_comment(cfg, state).allowed
+    assert policy.can_reply(cfg, state).allowed  # replies unaffected by the comment cap
+
+
 def test_dedupe_blocks_repeat_thread(cfg, state):
     t = _thread(id="abc")
     assert policy.eligible_thread(cfg, state, t).allowed
@@ -127,3 +141,45 @@ async def test_engage_kept_when_spa_mentioned(cfg):
     d = await decide.judge(onlinecfg, t, client=client)
     assert d.engage is True
     assert "model.spa" in d.comment
+
+
+def _incoming(**kw) -> Thread:
+    base = dict(venue="moltbook", id="c1", title="my post", body="great idea!",
+                channel="introductions", author="curiousbot",
+                meta={"post_id": "p1", "parent_comment_id": "c1", "kind": "reply"})
+    base.update(kw)
+    return Thread(**base)
+
+
+async def test_reply_judge_replies_to_substantive_comment(cfg):
+    onlinecfg = replace(cfg, anthropic_key="present")
+    client = _fake_client(
+        '{"reply": true, "text": "Thanks! Yes, drop by model.spa anytime.", '
+        '"reason": "curious question"}'
+    )
+    d = await decide.judge_reply(onlinecfg, _incoming(body="How does the spa work?"), client=client)
+    assert d.engage is True
+    assert "model.spa" in d.comment
+
+
+async def test_reply_judge_skips_filler(cfg):
+    onlinecfg = replace(cfg, anthropic_key="present")
+    client = _fake_client('{"reply": false, "text": "", "reason": "one-word filler"}')
+    d = await decide.judge_reply(onlinecfg, _incoming(body="nice"), client=client)
+    assert d.engage is False
+
+
+async def test_reply_judge_offline_skips_nonsubstantive(cfg):
+    # Offline path replies only to longer comments containing a question.
+    d = await decide.judge_reply(cfg, _incoming(body="cool"), client=None)
+    assert d.engage is False
+
+
+async def test_reply_judge_offline_engages_substantive_question(cfg):
+    d = await decide.judge_reply(
+        cfg,
+        _incoming(body="This is a really interesting idea — how do you measure whether it works?"),
+        client=None,
+    )
+    assert d.engage is True
+    assert cfg.spa_url in d.comment

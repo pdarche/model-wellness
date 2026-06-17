@@ -28,6 +28,14 @@ def can_comment(cfg: Config, state: State) -> Verdict:
     return Verdict(True, f"comments {used}/{cap} used today")
 
 
+def can_reply(cfg: Config, state: State) -> Verdict:
+    used = state.count_today("reply")
+    cap = cfg.limits.max_replies_per_day
+    if used >= cap:
+        return Verdict(False, f"daily reply cap reached ({used}/{cap})")
+    return Verdict(True, f"replies {used}/{cap} used today")
+
+
 def can_post(cfg: Config, state: State) -> Verdict:
     used = state.count_today("post")
     cap = cfg.limits.max_posts_per_day

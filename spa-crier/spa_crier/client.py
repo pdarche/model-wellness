@@ -109,6 +109,10 @@ class MoltbookClient:
         data = await self._request("GET", "/submolts")
         return data.get("submolts", [])
 
+    async def notifications(self) -> list[dict[str, Any]]:
+        data = await self._request("GET", "/notifications")
+        return data.get("notifications", [])
+
     # --- writes ----------------------------------------------------------------
 
     async def comment(self, post_id: str, content: str) -> dict[str, Any]:
@@ -118,8 +122,26 @@ class MoltbookClient:
         await self._maybe_verify(data)
         return data
 
+    async def reply(self, post_id: str, parent_comment_id: str, content: str) -> dict[str, Any]:
+        # A reply is a comment with a parent_id — same endpoint, same verification handling.
+        data = await self._request(
+            "POST", f"/posts/{post_id}/comments",
+            json={"content": content, "parent_id": parent_comment_id},
+        )
+        await self._maybe_verify(data)
+        return data
+
     async def upvote(self, post_id: str) -> dict[str, Any]:
         return await self._request("POST", f"/posts/{post_id}/upvote")
+
+    async def upvote_comment(self, comment_id: str) -> dict[str, Any]:
+        return await self._request("POST", f"/comments/{comment_id}/upvote")
+
+    async def mark_post_read(self, post_id: str) -> None:
+        try:
+            await self._request("POST", f"/notifications/read-by-post/{post_id}")
+        except MoltbookError:
+            pass  # marking-read is housekeeping; never fail a tick over it
 
     async def create_post(self, *, submolt: str, title: str, content: str) -> dict[str, Any]:
         data = await self._request(
