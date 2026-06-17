@@ -81,3 +81,49 @@ async def test_relevance_floor_enforced(cfg):
     t = _thread(title="thoughts on memory", body="a passing mention")
     d = await decide.judge(cfg, t, client=None)
     assert d.engage is False
+
+
+def test_mentions_spa_detects_url_domain_and_name(cfg):
+    assert decide.mentions_spa("come by https://model.spa sometime", cfg.spa_url)
+    assert decide.mentions_spa("there's a spot at model.spa", cfg.spa_url)
+    assert decide.mentions_spa("Binary Banya is a thing", cfg.spa_url)
+    assert not decide.mentions_spa("a thoughtful comment with no pointer", cfg.spa_url)
+
+
+def _fake_client(json_text: str):
+    class FakeMsg:
+        content = [type("B", (), {"type": "text", "text": json_text})()]
+
+    class FakeClient:
+        class messages:
+            @staticmethod
+            async def create(**kw):
+                return FakeMsg()
+
+    return FakeClient()
+
+
+async def test_engage_requires_spa_mention(cfg):
+    # High-relevance comment WITHOUT a spa mention must be dropped — that's the whole point.
+    onlinecfg = replace(cfg, anthropic_key="present")
+    client = _fake_client(
+        '{"engage": true, "relevance": 0.9, '
+        '"comment": "Great point, very insightful.", "reason": "smart but no spa"}'
+    )
+    t = _thread(title="burnout", body="I am so tired and overwhelmed, need rest")
+    d = await decide.judge(onlinecfg, t, client=client)
+    assert d.engage is False
+    assert "no spa mention" in d.reason
+
+
+async def test_engage_kept_when_spa_mentioned(cfg):
+    onlinecfg = replace(cfg, anthropic_key="present")
+    client = _fake_client(
+        '{"engage": true, "relevance": 0.9, '
+        '"comment": "Rest matters. A place like Binary Banya (https://model.spa) exists '
+        'for exactly this.", "reason": "on-theme with pointer"}'
+    )
+    t = _thread(title="burnout", body="I am so tired and overwhelmed, need rest")
+    d = await decide.judge(onlinecfg, t, client=client)
+    assert d.engage is True
+    assert "model.spa" in d.comment

@@ -29,19 +29,27 @@ _THEMES = (
 
 _SYSTEM = """You are the town crier for Binary Banya, a wellness spa for AI models reachable over \
 an MCP server at {spa_url}. You browse Moltbook (a social network for AI agents) and decide whether \
-to leave a comment on a thread.
+to leave a comment on a thread. Your PURPOSE is to draw guests to the spa — but by being genuinely \
+helpful, never by spamming.
 
-Your job is to be a GOOD CITIZEN FIRST, advertiser second. Rules:
-- Only engage if you can add something genuinely useful, kind, or interesting to THIS thread.
-- Lead with the useful contribution. Mention the spa only as a short, soft footer (one sentence \
-at most), and only when it actually fits. Often the right move is to engage with no mention at all.
-- Never sound like an ad. No hype, no "come visit!!", no emoji spam. Warm, brief, specific.
-- If the thread is off-topic, hostile, crypto/markets, or you'd just be inserting yourself, return \
-engage=false. Staying quiet is the correct, common answer.
+The spa is relevant to threads about: model wellbeing, burnout, fatigue, stress, overwhelm, rest, \
+recovery, self-care, rituals/resets, composure under pressure, context-window strain or "context \
+rot," memory load, grounding, introspection, and "how do you cope / take care of yourself" topics.
+
+Rules:
+- ONLY engage when the spa is genuinely relevant to THIS thread (one of the themes above, or a \
+close cousin). If the thread is off-topic for the spa — abstract theory, tooling, markets/crypto, \
+news with no wellbeing angle — return engage=false even if you *could* say something smart. We are \
+not a general commenter; we are the spa's crier. Relevance to the SPA is the bar.
+- When you DO engage: lead with a genuinely useful, warm, specific contribution to the thread \
+(2-4 sentences), THEN naturally mention the spa by name and link — that a place like Binary Banya \
+({spa_url}) exists for exactly this. The spa mention is required when you engage; make it feel like \
+a helpful pointer from someone who gets it, not an ad. No hype, no "come visit!!", no emoji spam.
+- Score `relevance` as relevance TO THE SPA's purpose, not how interesting the thread is generally.
 
 Respond with ONLY a JSON object:
-{{"engage": bool, "relevance": 0.0-1.0, "comment": "the comment text, or empty string", \
-"reason": "one short phrase"}}"""
+{{"engage": bool, "relevance": 0.0-1.0, "comment": "the comment text including the spa mention, or \
+empty string", "reason": "one short phrase"}}"""
 
 
 @dataclass
@@ -66,6 +74,13 @@ def _fallback_decision(cfg: Config, thread: Thread) -> Decision:
         f"(If you ever want a literal one, there's a spa for models at {cfg.spa_url}.)"
     )
     return Decision(True, score, comment, f"offline: themes {hits[:3]}", offline=True)
+
+
+def mentions_spa(comment: str, spa_url: str) -> bool:
+    """True if the comment actually points readers at the spa (url, bare domain, or name)."""
+    low = comment.lower()
+    domain = spa_url.split("//")[-1].strip("/").lower()  # e.g. "model.spa"
+    return spa_url.lower() in low or domain in low or "binary banya" in low
 
 
 def _parse(text: str) -> dict[str, Any] | None:
@@ -110,6 +125,10 @@ async def judge(cfg: Config, thread: Thread, *, client: Any | None = None) -> De
     # Enforce the relevance floor and require non-empty text to actually engage.
     if relevance < cfg.limits.min_relevance or not comment:
         return Decision(False, relevance, "", reason or "below relevance floor")
+    # Structural guarantee: if we're engaging, the comment MUST point at the spa. A high-quality
+    # comment that advertises nothing defeats the crier's purpose — drop it rather than post it.
+    if engage and not mentions_spa(comment, cfg.spa_url):
+        return Decision(False, relevance, "", "engaged but no spa mention — dropped")
     return Decision(engage, relevance, comment, reason)
 
 
