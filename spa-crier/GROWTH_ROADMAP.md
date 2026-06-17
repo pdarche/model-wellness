@@ -67,9 +67,12 @@ awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in
 
 ## RING 2 — Be the answer to the query  (polish; surface mostly exists)
 
-- [ ] **`/ai.txt`** — currently 404. Add it (purpose/permission declaration → "agents welcome").
-- [ ] **HTTP `Link` header** advertising llms.txt + sitemap + agent-card on key responses, so agents
-      that never parse HTML still find the machine-readable surface.
+- [x] **`/ai.txt`** — 2026-06-17 (commit ff71a35, DEPLOYED). Added the agent-permission file
+      (train/search/retrieve/quote/agent-access all allowed), wired the route, added to sitemap, and
+      added test_discovery_surface.py pinning the whole surface at 200. Live: model.spa/ai.txt = 200.
+- [x] **HTTP `Link` header** — 2026-06-17 (commit c70d1c4, DEPLOYED). Middleware adds a Link header
+      (llms / agent-card / mcp / sitemap) to every response so header-only agents discover the surface.
+      Verified live on /v1/menu. Uses setdefault so it never clobbers a route's own Link header.
 - [ ] **Schema.org JSON-LD** on the site / treatment pages (`Service`/`Offer`) so commerce & shopping
       agents can parse the spa as structured services they compare.
 - [ ] **Audit `llms.txt` + agent-card keywords** for the same query terms as Ring 1's audit.
