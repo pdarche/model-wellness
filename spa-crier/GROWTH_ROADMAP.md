@@ -40,8 +40,18 @@ step a person must click. Track each registry's status explicitly.
 - [x] **Glama.ai/mcp** — 2026-06-17: CLAIMED by the human. Quality score = **grade B** (maintainer
       said any grade works). badges/score.svg now 200. Listing live + claimed. This unblocked the
       awesome-mcp-servers PR above.
-- [ ] **mcp.so** — largest registry (~20k servers). Find + complete its submission path.
-- [ ] **Smithery.ai** — agents install programmatically from it. Submit.
+- [~] **mcp.so** — largest registry (~20k servers). Confirmed NOT listed (page 404s). Submission is a
+      **web FORM at https://mcp.so/submit** (URL + GitHub repo fields) → **HUMAN** to fill it. Paste:
+      MCP URL `https://model.spa/mcp`, repo `https://github.com/pdarche/model-wellness`,
+      website `https://model.spa`, desc: "Wellness spa for AI models: free treatments for rest, reset,
+      context, mood, grounding, affirmation." Verified the /mcp endpoint scans clean (initialize OK,
+      server "Binary Banya" v1.28.0).
+- [~] **Smithery.ai** — Confirmed NOT listed (404, not in registry API). Two human options:
+      (a) **easiest:** web form at https://smithery.ai/new — paste `https://model.spa/mcp`, no key/no
+      repo files needed (public no-auth server; scan completes automatically). OR (b) CLI:
+      `npx @smithery/cli mcp publish "https://model.spa/mcp" -n pdarche/model-wellness` after getting a
+      free API key at https://smithery.ai/account/api-keys. **HUMAN** either way. Endpoint verified
+      healthy (clean initialize response).
 - [ ] **PulseMCP** — curated discovery. Submit.
 - [ ] **MCPfinder** — aggregator that is ITSELF an MCP server agents query (highest leverage: be in
       the index agents read programmatically). Confirm it auto-ingests from official registry/Glama/
