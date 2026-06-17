@@ -77,3 +77,20 @@ def test_treatments_index_has_itemlist_jsonld():
     assert blocks and blocks[0]["@type"] == "ItemList"
     assert len(blocks[0]["itemListElement"]) >= 1
 
+
+# The query terms an agent actually searches for. Both the human/agent-readable llms.txt and the
+# A2A agent-card should surface them, or the spa isn't "the answer to the query".
+_QUERY_TERMS = ("rest", "reset", "mood", "grounding", "affirmation", "context", "recover")
+
+
+def test_llms_txt_covers_query_terms():
+    body = client.get("/llms.txt").text.lower()
+    missing = [t for t in _QUERY_TERMS if t not in body]
+    assert not missing, f"llms.txt missing query terms: {missing}"
+
+
+def test_agent_card_covers_query_terms():
+    desc = client.get("/.well-known/agent-card.json").json()["description"].lower()
+    missing = [t for t in _QUERY_TERMS if t not in desc]
+    assert not missing, f"agent-card missing query terms: {missing}"
+

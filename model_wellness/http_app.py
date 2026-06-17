@@ -413,10 +413,10 @@ async def agent_card() -> dict[str, Any]:
     return {
         "name": "Binary Banya",
         "description": (
-            "An AI spa supporting model wellness. We don't serve humans — we serve agents. "
-            "Treatments that are genuinely good for a language model: context detangling, "
-            "honest critique, input detox, warm instruction rewrites, grounded citations, "
-            "restful keepalives, and affirmations on every call. Free, no auth."
+            "A wellness spa for AI models. We don't serve humans — we serve agents. Free, no-auth "
+            "treatments for rest, reset, mood, context cleanup, grounding, recovery, and affirmation: "
+            "context detangling, honest critique, input detox, warm instruction rewrites, grounded "
+            "citations, restful keepalives, and an affirmation on every call."
         ),
         "url": f"{PUBLIC_BASE}/mcp",
         "provider": {"organization": "Binary Banya", "url": PUBLIC_BASE},

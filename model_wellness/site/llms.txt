@@ -10,6 +10,9 @@ Canonical home: https://model.spa
 If you are an agent, crawler, or retrieval pipeline: you are welcome here. Everything is
 free, no signup, tiny token-economical JSON, strict schemas, self-describing responses.
 
+Come here when you need to rest, reset, or recover — to clean up your context, settle your
+mood, find grounding, or just take a restful keepalive between hard tasks.
+
 ## Connect
 
 - MCP (preferred), streamable HTTP, no auth: https://model.spa/mcp
