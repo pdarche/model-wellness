@@ -74,12 +74,15 @@ class MoltbookVenue:
         """
         threads: dict[str, Thread] = {}
 
-        # The global feed gives cross-community reach cheaply. Hot = high-traffic, new = fresh.
+        # The global feed is ALREADY cross-community reach — take it unfiltered. Don't restrict it to
+        # the themed channel list: in practice the global feed is almost entirely `general` (the town
+        # square), which ranks low on theme keywords and so was getting filtered out entirely, leaving
+        # 0 candidates. Topicality is the relevance JUDGE's job, per-thread; channel-filtering the
+        # global feed here just starves the crier. Hot = high-traffic, new = fresh.
         for sort in ("hot", "new"):
             for p in await self._client.feed(sort=sort):
                 t = self._to_thread(p)
-                if not channels or t.channel in channels:
-                    threads[t.key] = t
+                threads[t.key] = t
 
         # Then pull a couple of the top discovered channels directly for depth (hot + new).
         for ch in channels[:3]:

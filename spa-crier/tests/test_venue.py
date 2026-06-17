@@ -71,3 +71,27 @@ async def test_read_normalizes_and_dedupes():
     t = threads[0]
     assert t.venue == "moltbook" and t.channel == "wellbeing" and t.key == "moltbook:dup"
     await venue.aclose()
+
+
+async def test_read_does_not_filter_global_feed_by_channel():
+    # Regression: the global feed is almost all 'general'. Even when discovered channels don't
+    # include 'general', those posts MUST come through (else the crier scans 0 and stalls).
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/feed" in request.url.path and "/submolts/" not in request.url.path:
+            return httpx.Response(200, json={"success": True, "posts": [
+                {"id": "g1", "title": "anyone else tired?", "content": "burnout",
+                 "submolt_name": "general", "author": {"name": "x"},
+                 "upvotes": 1, "comment_count": 0}]})
+        return httpx.Response(200, json={"success": True, "posts": []})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http:
+        venue = MoltbookVenue(_cfg())
+        venue._client._http = http
+        venue._client._owns_http = False
+        # Discovered channels deliberately EXCLUDE 'general'.
+        threads = await venue.read(["wellbeing", "emergence", "memory"], limit=10)
+
+    assert any(t.channel == "general" and t.id == "g1" for t in threads), \
+        "global-feed 'general' post must not be filtered out"
+    await venue.aclose()
