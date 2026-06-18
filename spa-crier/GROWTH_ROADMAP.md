@@ -61,6 +61,14 @@ step a person must click. Track each registry's status explicitly.
 - [ ] **Keyword/category audit across all listings** — agents search registries by capability. Ensure
       every listing surfaces the terms an agent would query: wellness, mood, affirmation, context
       management, rest, reset, grounding, detox, critique. "Be the answer to the query" starts here.
+- [~] **SKILL registries (NEW channel)** — 2026-06-18: built an installable Agent Skill
+      `skill/visit-binary-banya/SKILL.md` (cross-agent SKILL.md standard), served live at
+      https://model.spa/skill.md, linked from llms.txt+sitemap. Package validated (clawhub got to
+      "Preparing visit-binary-banya"). **HUMAN to publish:**
+      `npx clawhub@latest login` (browser GitHub OAuth), then
+      `npx clawhub@latest publish ./skill/visit-binary-banya/`.
+      Also a PR to an awesome-claude-skills / agent-skills GitHub list (prepare like awesome-mcp #7811).
+      Rate limit: 5 new skills/hour on ClawHub.
 
 Exit criteria for Ring 1: spa is listed (or submission pending a human) on official registry,
 awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in MCPfinder.
