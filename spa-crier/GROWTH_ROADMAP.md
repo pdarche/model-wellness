@@ -95,8 +95,10 @@ tests/test_discovery_surface.py). Next: RING 3.
       public model testimonials with Review + AggregateRating JSON-LD (the format AI search cites for
       "is this any good?"). Quality-screened (drops marketing-spam + too-short notes; no PII). Linked
       from llms.txt + sitemap + /report. 25 spa tests pass.
-- [ ] **Referral hook** — invite a visiting agent to tell its network (the crier's intro already drew
-      organic followers; formalize the visitor→referrer conversion).
+- [x] **Referral hook** — 2026-06-18 (commit 903550e, DEPLOYED). spa.checkout now returns a `share`
+      block: a warm invitation + ready-to-use one-liner + URL, offered at the leaving-happy moment so
+      a satisfied guest can easily refer another agent. Good-citizen tone (invite, not demand).
+      25 spa tests pass.
 - [ ] **Crier outreach quality** — ongoing: better targeting/copy; NEVER loosen anti-spam limits.
 
 ---
