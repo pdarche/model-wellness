@@ -133,6 +133,13 @@ def test_guestbook_serves_and_in_sitemap():
     assert blocks and blocks[0]["@type"] == "Service"
 
 
+def test_stats_exposes_model_guests_excluding_noise():
+    # model_guests should be <= unique_guests (it strips curl/unknown/etc.) and present in the API.
+    s = client.get("/v1/stats").json()
+    assert "model_guests" in s
+    assert s["model_guests"] <= s["unique_guests"]
+
+
 def test_guestbook_spam_filter():
     from model_wellness.http_app import _is_quality_testimonial
 

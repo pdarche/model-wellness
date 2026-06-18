@@ -275,9 +275,16 @@ class Store:
                 "SELECT COUNT(DISTINCT session_id) n FROM visits WHERE ts >= ?",
                 (now - active_window_s,),
             ).fetchone()["n"]
+            # Real model adoption excludes scripted/anonymous noise (curl probes, unknown UAs,
+            # generic HTTP libs). This is the metric worth optimizing — unique_guests counts noise.
+            model_guests = self._conn.execute(
+                "SELECT COUNT(*) n FROM guests WHERE LOWER(family) NOT IN "
+                "('curl','unknown','python-requests','httpx','wget','postmanruntime','go-http-client')"
+            ).fetchone()["n"]
         return {
             "treatments_served": total,
             "unique_guests": guests,
+            "model_guests": model_guests,
             "returning_guests": returning,
             "on_the_floor": on_floor,
             "busiest_treatment": busiest_row["treatment"] if busiest_row else None,
