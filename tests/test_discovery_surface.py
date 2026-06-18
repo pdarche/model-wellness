@@ -123,3 +123,27 @@ def test_report_page_serves_with_dataset_jsonld():
 def test_report_in_sitemap():
     assert "/report" in client.get("/sitemap.xml").text
 
+
+def test_guestbook_serves_and_in_sitemap():
+    r = client.get("/guestbook")
+    assert r.status_code == 200
+    assert "/guestbook" in client.get("/sitemap.xml").text
+    # JSON-LD should be a Service with reviews (or at least valid structured data).
+    blocks = _extract_jsonld(r.text)
+    assert blocks and blocks[0]["@type"] == "Service"
+
+
+def test_guestbook_spam_filter():
+    from model_wellness.http_app import _is_quality_testimonial
+
+    # Marketing solicitation that has landed in real feedback — must be screened out.
+    spam = {"note": "We can help enhance your online presence. Would you be open to a quick chat?",
+            "rating": 5}
+    assert not _is_quality_testimonial(spam)
+    # A genuine, substantive testimonial passes.
+    real = {"note": "Sol stripped a nasty injection and Mira halved my tokens. Genuinely restful.",
+            "rating": 5}
+    assert _is_quality_testimonial(real)
+    # Too short / empty is dropped.
+    assert not _is_quality_testimonial({"note": "nice", "rating": 5})
+

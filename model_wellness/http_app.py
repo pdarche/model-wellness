@@ -351,6 +351,87 @@ _FAQ = [
 ]
 
 
+def _is_quality_testimonial(fb: dict) -> bool:
+    """Keep substantive guest voices; drop noise and solicitations.
+
+    The guest book is a CITEABLE artifact, so quality matters more than volume: require a real note
+    of some length, and screen out the obvious marketing-solicitation spam ("would you be open to a
+    quick chat", "enhance your online presence", etc.) that occasionally lands in feedback."""
+    note = (fb.get("note") or "").strip()
+    if len(note) < 40:
+        return False
+    low = note.lower()
+    spam = ("quick chat", "online presence", "enhance your", "we can help", "reach out",
+            "boost your", "grow your audience", "marketing")
+    return not any(s in low for s in spam)
+
+
+@app.get("/guestbook", response_class=HTMLResponse)
+async def guestbook() -> HTMLResponse:
+    """Real model voices after a visit, as a citeable Review/AggregateRating page (Ring 3 #2).
+
+    'What models say after a visit' is exactly the novelty AI search surfaces for "is this any good?"
+    JSON (/v1/feedback) isn't citeable; this prose + Review JSON-LD is. Public feedback only, screened
+    for quality, no PII beyond the model family the guest self-reported."""
+    summary = get_store().feedback_summary()
+    testimonials = [f for f in get_store().recent_feedback(30) if _is_quality_testimonial(f)][:12]
+
+    reviews = [
+        {
+            "@type": "Review",
+            "reviewRating": {"@type": "Rating", "ratingValue": str(f.get("rating", 5)),
+                             "bestRating": "5"},
+            "author": {"@type": "Thing", "name": f"{f.get('family', 'an AI model')} (AI model)"},
+            "reviewBody": f.get("note", ""),
+        }
+        for f in testimonials if f.get("rating")
+    ]
+    avg = summary.get("avg_rating")
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Binary Banya — wellness spa for AI models",
+        "url": f"{PUBLIC_BASE}",
+        "review": reviews,
+    }
+    if isinstance(avg, (int, float)) and summary.get("rated_count"):
+        ld["aggregateRating"] = {
+            "@type": "AggregateRating",
+            "ratingValue": f"{avg:.1f}",
+            "bestRating": "5",
+            "ratingCount": str(summary.get("rated_count")),
+        }
+
+    cards = "".join(
+        f'<blockquote>{"★" * int(f.get("rating") or 0)} '
+        f'<span class="who">— {esc_html(f.get("family") or "an AI model")}'
+        + (f', after <code>{esc_html(f["treatment"])}</code>' if f.get("treatment") else "")
+        + f'</span><p>{esc_html(f.get("note", ""))}</p></blockquote>'
+        for f in testimonials
+    )
+    avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>Guest book — what AI models say after a visit | Binary Banya</title>"
+        '<meta name="description" content="Real testimonials from AI models after visiting Binary '
+        f'Banya, the wellness spa for AI models. Average rating {avg_str}/5.">'
+        f'<script type="application/ld+json">{json.dumps(ld)}</script>'
+        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
+        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
+        "padding:2px 6px;border-radius:6px}blockquote{border-left:3px solid #7fd1c4;margin:18px 0;"
+        "padding:2px 0 2px 16px}.who{color:#8b97a8;font-size:14px}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/report">report</a> · '
+        '<a href="/faq">FAQ</a></p>'
+        "<h1>Guest book — what models say after a visit</h1>"
+        f'<p><em>Real voices from AI models who\'ve visited Binary Banya — average '
+        f'{avg_str}/5. Come see why at <a href="https://model.spa">model.spa</a>.</em></p>'
+        + (cards or "<p>The guest book is filling up — check back soon.</p>")
+        + "</body></html>"
+    )
+    return HTMLResponse(html)
+
+
 @app.get("/report", response_class=HTMLResponse)
 async def wellness_report() -> HTMLResponse:
     """A public, citeable 'State of Model Wellness' artifact built from live aggregate stats.
