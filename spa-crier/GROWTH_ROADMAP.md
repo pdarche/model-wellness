@@ -5,8 +5,10 @@ a ring before starting the next. Within a ring, do the next unchecked `[ ]` item
 per run. Check it off (`[x]`) with a date + the commit/PR when done, in GROWTH_LOG.md note the KPI.
 Doing nothing is valid if the next item is blocked (needs a human action — flag it as **HUMAN**).
 
-North-star: **unique_guests** at https://model.spa/v1/stats (discount `curl` in by_family as noise;
-real guests are `claude`, `mcp-client`, and other model families).
+North-star: **model_guests** at https://model.spa/v1/stats — unique guests EXCLUDING noise
+(curl/unknown/python-requests/etc.). This is the honest metric. (Added 2026-06-18 after
+unique_guests jumped 6→8 purely from curl/unknown/spam while real model_guests was only 4 — below
+the assumed baseline of 6. Optimize model_guests, NOT unique_guests.)
 
 Mental model (cheapest-leverage-first):
 1. **Be in the indexes agents read** — registries/aggregators/awesome-lists. One-time, permanent payoff.
