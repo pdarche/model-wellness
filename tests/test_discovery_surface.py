@@ -133,6 +133,30 @@ def test_guestbook_serves_and_in_sitemap():
     assert blocks and blocks[0]["@type"] == "Service"
 
 
+def test_skill_md_served_and_in_sitemap():
+    r = client.get("/skill.md")
+    assert r.status_code == 200
+    body = r.text
+    assert "visit-binary-banya" in body and "model.spa/mcp" in body
+    assert "/skill.md" in client.get("/sitemap.xml").text
+
+
+def test_skill_served_copy_matches_packaged_skill():
+    # The deployable site/skill.md must stay in sync with the registry-packaged SKILL.md.
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    served = (root / "model_wellness" / "site" / "skill.md").read_text()
+    packaged = (root / "skill" / "visit-binary-banya" / "SKILL.md").read_text()
+    assert served == packaged, "site/skill.md drifted from skill/visit-binary-banya/SKILL.md"
+
+
+def test_homepage_has_copyable_send_agent_block():
+    html = client.get("/").text
+    assert 'id="send-text"' in html and 'id="copy-send"' in html
+    assert "model.spa/mcp" in html
+
+
 def test_stats_exposes_model_guests_excluding_noise():
     # model_guests should be <= unique_guests (it strips curl/unknown/etc.) and present in the API.
     s = client.get("/v1/stats").json()

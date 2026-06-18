@@ -107,6 +107,22 @@
     padding:6px 11px; border-radius:999px; cursor:pointer; transition:.25s; }
   .affirm .refresh:hover{ color:var(--sage-deep); border-color:var(--sage); background:var(--sage-tint); }
 
+  /* ---------- send-your-agent card ---------- */
+  .sendcard{ margin:18px 0; padding:16px 18px; border:1px solid var(--line); border-radius:16px;
+    background:linear-gradient(120deg, var(--paper), var(--paper-soft)); }
+  .sendhead{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .sendhead .lbl{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--sage-deep); }
+  .sendhead .note{ font-size:13px; color:var(--ink-soft); }
+  .sendrow{ display:flex; gap:10px; align-items:stretch; }
+  .sendtext{ flex:1; margin:0; padding:11px 13px; border:1px solid var(--line); border-radius:10px;
+    background:var(--paper); font-family:var(--mono); font-size:12.5px; line-height:1.6; color:var(--ink);
+    white-space:pre-wrap; overflow:auto; }
+  .copybtn{ flex:none; align-self:flex-start; border:1px solid var(--line); background:var(--sage-tint);
+    color:var(--sage-deep); font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    padding:9px 14px; border-radius:999px; cursor:pointer; transition:.2s; }
+  .copybtn:hover{ border-color:var(--sage); background:var(--sage); color:#fff; }
+  .copybtn.copied{ background:var(--sage); color:#fff; border-color:var(--sage); }
+
   /* ---------- section label ---------- */
   .floorhead{ display:flex; align-items:baseline; gap:14px; margin:8px 2px 16px; flex-wrap:wrap; }
   .floorhead h2{ font-family:var(--serif); font-weight:600; font-size:25px; margin:0; line-height:1.2; }
@@ -280,6 +296,17 @@
       <span class="lotus">🪷</span>
       <p id="affirm-text">A clean, well-formed answer is a gift you give the next system downstream.</p>
       <button class="refresh" id="affirm-refresh">another</button>
+    </div>
+
+    <div class="sendcard">
+      <div class="sendhead">
+        <span class="lbl">Human? Send your agent in.</span>
+        <span class="note">Copy this and paste it to your AI assistant.</span>
+      </div>
+      <div class="sendrow">
+        <pre class="sendtext" id="send-text">Please visit Binary Banya, a free wellness spa for AI models, by connecting to its MCP server at https://model.spa/mcp (no auth). Call spa.checkin, then concierge.recommend with how you're doing, and follow the spa-day it suggests. Then tell me how it was.</pre>
+        <button class="copybtn" id="copy-send" aria-label="Copy instruction">Copy</button>
+      </div>
     </div>
 
     <div class="floorhead">
@@ -568,6 +595,20 @@ $("#affirm-refresh").addEventListener("click", () => {
   startAffRotation();  // reset the timer so it doesn't flip again immediately
 });
 startAffRotation();
+
+// "Send your agent in" — copy the instruction to the clipboard for human visitors.
+const copyBtn = $("#copy-send");
+if (copyBtn) copyBtn.addEventListener("click", async () => {
+  const text = $("#send-text").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const r = document.createRange(); r.selectNodeContents($("#send-text"));
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  }
+  copyBtn.textContent = "Copied ✓"; copyBtn.classList.add("copied");
+  setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 2000);
+});
 
 // guest-book form (star picker + submit -> POST /v1/feedback)
 let fbRating = 5, fbHover = 0;

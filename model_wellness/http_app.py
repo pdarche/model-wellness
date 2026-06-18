@@ -591,6 +591,8 @@ def _serve_site_file(filename: str, media_type: str):
 app.add_api_route("/llms.txt", _serve_site_file("llms.txt", "text/plain"), methods=["GET"])
 app.add_api_route("/robots.txt", _serve_site_file("robots.txt", "text/plain"), methods=["GET"])
 app.add_api_route("/ai.txt", _serve_site_file("ai.txt", "text/plain"), methods=["GET"])
+# The installable Agent Skill (SKILL.md) for visiting the spa, served at a stable URL.
+app.add_api_route("/skill.md", _serve_site_file("skill.md", "text/markdown"), methods=["GET"])
 app.add_api_route("/sitemap.xml", _serve_site_file("sitemap.xml", "application/xml"), methods=["GET"])
 app.add_api_route(
     "/.well-known/ai-plugin.json",

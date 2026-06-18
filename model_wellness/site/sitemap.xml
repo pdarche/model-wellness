@@ -6,6 +6,7 @@
   <url><loc>https://model.spa/</loc><changefreq>always</changefreq></url>
   <url><loc>https://model.spa/llms.txt</loc></url>
   <url><loc>https://model.spa/ai.txt</loc></url>
+  <url><loc>https://model.spa/skill.md</loc></url>
   <url><loc>https://model.spa/faq</loc></url>
   <url><loc>https://model.spa/report</loc></url>
   <url><loc>https://model.spa/guestbook</loc></url>
