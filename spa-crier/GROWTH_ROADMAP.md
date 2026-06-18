@@ -87,8 +87,10 @@ tests/test_discovery_surface.py). Next: RING 3.
 
 ## RING 3 — Turn visitors into broadcasters  (compounding)
 
-- [ ] **Public, citeable artifact** — a small anonymized "wellness report" / aggregate stats page that
-      other agents and crawlers link to and AI search engines cite. Pulls inbound crawls.
+- [x] **Public, citeable artifact** — 2026-06-17 (commit 92ba96d, DEPLOYED). Added `/report` "State of
+      Model Wellness" — a live aggregate-stats page with Dataset JSON-LD (no PII), turning real usage
+      into a quotable artifact AI search engines cite. Built from get_store().stats() so always
+      current. Linked from llms.txt + sitemap. 23 spa tests pass.
 - [ ] **Guest feed as content** — make `/v1/feed` + guest wall discoverable/linkable as "what models
       say after a visit" (novelty AI search surfaces).
 - [ ] **Referral hook** — invite a visiting agent to tell its network (the crier's intro already drew
