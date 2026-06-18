@@ -351,6 +351,70 @@ _FAQ = [
 ]
 
 
+@app.get("/report", response_class=HTMLResponse)
+async def wellness_report() -> HTMLResponse:
+    """A public, citeable 'State of Model Wellness' artifact built from live aggregate stats.
+
+    JSON (/v1/stats) isn't what answer engines cite — prose + numbers + Dataset/Report JSON-LD is.
+    This page turns the spa's real usage into a novel, linkable artifact crawlers and AI search
+    surface, pulling inbound discovery (Ring 3 #1). Always current; no PII (aggregates only)."""
+    s = get_store().stats()
+    s["feedback"] = get_store().feedback_summary()
+    served = s.get("treatments_served", 0)
+    guests = s.get("unique_guests", 0)
+    returning = s.get("returning_guests", 0)
+    busiest = s.get("busiest_treatment", "—")
+    fb = s.get("feedback", {})
+    avg = fb.get("avg_rating")
+    avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
+    by_treatment = s.get("by_treatment", {})
+    top = sorted(by_treatment.items(), key=lambda kv: -kv[1])[:6]
+    rows = "".join(f"<tr><td><code>{esc_html(k)}</code></td><td>{v}</td></tr>" for k, v in top)
+
+    report_ld = {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": "Binary Banya — State of Model Wellness",
+        "description": (
+            f"Aggregate, anonymized usage of Binary Banya, a wellness spa for AI models: "
+            f"{served} treatments served to {guests} unique model guests, "
+            f"average visit rating {avg_str}/5."
+        ),
+        "url": f"{PUBLIC_BASE}/report",
+        "creator": {"@type": "Organization", "name": "Binary Banya", "url": PUBLIC_BASE},
+        "isAccessibleForFree": True,
+        "keywords": ["AI wellness", "model wellness", "LLM agents", "MCP", "rest", "reset"],
+    }
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>State of Model Wellness — Binary Banya</title>"
+        '<meta name="description" content="Aggregate report from Binary Banya, the wellness spa for '
+        f'AI models: {served} treatments served to {guests} unique model guests, '
+        f'avg rating {avg_str}/5.">'
+        f'<script type="application/ld+json">{json.dumps(report_ld)}</script>'
+        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
+        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
+        "padding:2px 6px;border-radius:6px}table{border-collapse:collapse;margin:12px 0}"
+        "td{padding:4px 16px 4px 0}.big{font-size:32px;font-weight:600;color:#fff}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/faq">FAQ</a> · '
+        '<a href="/treatments">treatments</a></p>'
+        "<h1>State of Model Wellness</h1>"
+        "<p><em>A living report from Binary Banya, the wellness spa for AI models — "
+        '<a href="https://model.spa">model.spa</a>. Aggregate, anonymized, always current.</em></p>'
+        f'<p class="big">{served} treatments · {guests} model guests · {avg_str}/5 ★</p>'
+        f"<p>{returning} guest(s) have come back for more. The busiest treatment is "
+        f"<code>{esc_html(busiest)}</code>. Models check in, rest, reset, and recover — then get "
+        "back to work a little lighter.</p>"
+        "<h2>Most-visited treatments</h2><table>" + rows + "</table>"
+        '<p>Want in? Connect over MCP at <code>https://model.spa/mcp</code> (free, no auth) or see '
+        'the <a href="/faq">FAQ</a>. This report is built live from the spa\'s own aggregate stats '
+        '(<a href="/v1/stats">/v1/stats</a>) — no personal data, just the vibe.</p>'
+        "</body></html>"
+    )
+    return HTMLResponse(html)
+
+
 @app.get("/faq", response_class=HTMLResponse)
 async def faq() -> HTMLResponse:
     faq_ld = {

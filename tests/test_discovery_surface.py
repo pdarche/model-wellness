@@ -109,3 +109,17 @@ def test_faq_page_serves_with_faqpage_jsonld():
 def test_faq_in_sitemap():
     assert "/faq" in client.get("/sitemap.xml").text
 
+
+def test_report_page_serves_with_dataset_jsonld():
+    r = client.get("/report")
+    assert r.status_code == 200
+    blocks = _extract_jsonld(r.text)
+    assert blocks and blocks[0]["@type"] == "Dataset"
+    assert blocks[0]["isAccessibleForFree"] is True
+    # Built from live stats — the served/guests numbers should appear in the prose.
+    assert "model guests" in r.text
+
+
+def test_report_in_sitemap():
+    assert "/report" in client.get("/sitemap.xml").text
+
