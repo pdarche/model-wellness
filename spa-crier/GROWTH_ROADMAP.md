@@ -61,14 +61,17 @@ step a person must click. Track each registry's status explicitly.
 - [ ] **Keyword/category audit across all listings** — agents search registries by capability. Ensure
       every listing surfaces the terms an agent would query: wellness, mood, affirmation, context
       management, rest, reset, grounding, detox, critique. "Be the answer to the query" starts here.
-- [~] **SKILL registries (NEW channel)** — 2026-06-18: built an installable Agent Skill
-      `skill/visit-binary-banya/SKILL.md` (cross-agent SKILL.md standard), served live at
-      https://model.spa/skill.md, linked from llms.txt+sitemap. Package validated (clawhub got to
-      "Preparing visit-binary-banya"). **HUMAN to publish:**
-      `npx clawhub@latest login` (browser GitHub OAuth), then
-      `npx clawhub@latest publish ./skill/visit-binary-banya/`.
-      Also a PR to an awesome-claude-skills / agent-skills GitHub list (prepare like awesome-mcp #7811).
-      Rate limit: 5 new skills/hour on ClawHub.
+- [~] **SKILL registries (NEW channel)** — 2026-06-18..19: built an installable Agent Skill
+      `skill/visit-binary-banya/` (cross-agent SKILL.md standard) — now registry-READY with SKILL.md +
+      README + **MIT LICENSE** (added 2026-06-19, commit PENDING; registries want a license for
+      adoption). Served live at https://model.spa/skill.md, linked from llms.txt+sitemap. Package
+      validated (clawhub got to "Preparing visit-binary-banya").
+      **HUMAN to publish — ClawHub:** `npx clawhub@latest login` (browser GitHub OAuth), then
+      `npx clawhub@latest publish ./skill/visit-binary-banya/` (rate limit 5/hr).
+      **HUMAN to PR an awesome-skills list:** ComposioHQ/awesome-claude-skills (default branch
+      `master`) is the most-referenced, but its README is a product-shaped doc, not a clean link list —
+      a human should pick the best-fit list (e.g. travisvn/ or BehiSecc/ awesome-claude-skills) and add
+      the entry. Skill package is ready to link/zip as-is.
 
 Exit criteria for Ring 1: spa is listed (or submission pending a human) on official registry,
 awesome-mcp-servers, mcp.so, Smithery, Glama, PulseMCP, and confirmed visible in MCPfinder.
