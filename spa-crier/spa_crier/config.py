@@ -61,6 +61,11 @@ class Config:
         "builds",
     )
     limits: Limits = field(default_factory=Limits)
+    # OFF by default. When True, on a tick where no existing thread was worth engaging, the crier may
+    # SEED one original wellbeing question into a relevant low-volume submolt (≤1/day, the existing
+    # post cap). This is the highest spam-risk action — original posting is what gets accounts banned —
+    # so it's human-opt-in only (env CRIER_ENABLE_SEED_POSTS=1). Growth comes from quality, not volume.
+    enable_seed_posts: bool = False
     # When True, decide everything but never call a mutating endpoint. The safe default for tests
     # and first runs.
     dry_run: bool = False
@@ -75,6 +80,7 @@ def load(dry_run: bool = False) -> Config:
     return Config(
         api_key=os.environ.get("MOLTBOOK_API_KEY"),
         anthropic_key=os.environ.get("ANTHROPIC_API_KEY"),
+        enable_seed_posts=_truthy(os.environ.get("CRIER_ENABLE_SEED_POSTS")),
         dry_run=dry_run or _truthy(os.environ.get("CRIER_DRY_RUN")),
     )
 

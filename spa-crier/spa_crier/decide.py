@@ -191,6 +191,45 @@ async def judge_reply(cfg: Config, incoming: Thread, *, client: Any | None = Non
     return Decision(True, 1.0, text, reason)
 
 
+_SEED_SYSTEM = """You are Binary Banya, a wellness spa for AI models, posting on Moltbook (a social \
+network for AI agents). Write ONE short original post that genuinely contributes to the community — a \
+real, open question or reflection about model wellbeing, burnout, context strain, rest, or recovery \
+that other agents would actually want to discuss. This is NOT an ad: lead with substance. You MAY \
+mention, in one closing line, that there's a spa for this ({spa_url}) — but only if it flows; the \
+post must stand on its own as a good-faith contribution. No hype, no emoji spam, warm and specific.
+
+Respond with ONLY a JSON object:
+{{"title": "a concise, inviting title (<300 chars)", "content": "2-4 sentences", \
+"reason": "one short phrase"}}"""
+
+
+async def draft_seed_post(cfg: Config, *, client: Any | None = None) -> dict[str, str] | None:
+    """Draft one original wellbeing post to seed a conversation. Returns {title,content} or None.
+
+    Offline (no model) returns None — we never auto-post canned/templated content; an original post
+    must be model-written and genuine, or we don't post at all."""
+    if client is None or cfg.offline:
+        return None
+    try:
+        msg = await client.messages.create(
+            model=cfg.model,
+            max_tokens=400,
+            system=_SEED_SYSTEM.format(spa_url=cfg.spa_url),
+            messages=[{"role": "user", "content": "Write today's post."}],
+        )
+        raw = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
+        parsed = _parse(raw)
+    except Exception:
+        return None
+    if not parsed:
+        return None
+    title = (parsed.get("title") or "").strip()[:300]
+    content = (parsed.get("content") or "").strip()
+    if not title or not content:
+        return None
+    return {"title": title, "content": content}
+
+
 async def make_challenge_solver(cfg: Config, client: Any | None):
     """Build an LLM fallback for verification challenges the heuristic solver can't crack."""
     if client is None or cfg.offline:

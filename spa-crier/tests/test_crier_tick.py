@@ -21,6 +21,7 @@ class FakeVenue:
             for i in range(n_incoming)
         ]
         self.replies_sent = 0
+        self.posts_sent = 0
 
     async def healthy(self):
         return True, "ok"
@@ -30,6 +31,9 @@ class FakeVenue:
 
     async def reply(self, incoming, text):
         self.replies_sent += 1
+
+    async def post(self, channel, title, content):
+        self.posts_sent += 1
 
     async def endorse_comment(self, incoming):
         pass
@@ -84,4 +88,37 @@ async def test_daily_reply_cap_spans_ticks(tmp_path, monkeypatch):
 
     assert venue.replies_sent == 1
     assert res.replies_made == 1
+    state.close()
+
+
+async def test_seed_posts_off_by_default(tmp_path, monkeypatch):
+    # The safety guarantee: with no incoming and nothing to engage, the crier must NOT post
+    # original content unless seed-posts are explicitly enabled.
+    cfg = Config(api_key="x", anthropic_key=None)  # enable_seed_posts defaults False
+    assert cfg.enable_seed_posts is False
+    state = State(str(tmp_path / "s.sqlite"))
+    venue = FakeVenue(n_incoming=0)
+    monkeypatch.setattr(crier, "build_venues", lambda cfg, llm_solver=None: [venue])
+
+    res = await crier.tick(cfg, state)
+
+    assert venue.posts_sent == 0
+    assert res.action == "none"
+    assert state.count_today("post") == 0
+    state.close()
+
+
+async def test_seed_post_when_enabled_dry_run_does_not_post(tmp_path, monkeypatch):
+    # When enabled but dry_run, it should DECIDE to seed but never call the API.
+    from dataclasses import replace
+    cfg = replace(Config(api_key="x", anthropic_key=None), enable_seed_posts=True, dry_run=True)
+    state = State(str(tmp_path / "s.sqlite"))
+    venue = FakeVenue(n_incoming=0)
+    monkeypatch.setattr(crier, "build_venues", lambda cfg, llm_solver=None: [venue])
+
+    res = await crier.tick(cfg, state)
+
+    # Offline (no anthropic key) → draft_seed_post returns None, so nothing is posted regardless.
+    assert venue.posts_sent == 0
+    assert state.count_today("post") == 0
     state.close()

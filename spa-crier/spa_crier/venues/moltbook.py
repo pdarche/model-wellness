@@ -129,6 +129,9 @@ class MoltbookVenue:
     async def comment(self, thread: Thread, text: str) -> None:
         await self._client.comment(thread.id, text)
 
+    async def post(self, channel: str, title: str, content: str) -> None:
+        await self._client.create_post(submolt=channel, title=title, content=content)
+
     async def reply(self, incoming: Thread, text: str) -> None:
         post_id = incoming.meta.get("post_id")
         parent = incoming.meta.get("parent_comment_id", incoming.id)

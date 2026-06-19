@@ -57,6 +57,9 @@ class Venue(Protocol):
     async def comment(self, thread: Thread, text: str) -> None:
         """Leave a comment on a thread (handles any platform verification internally)."""
 
+    async def post(self, channel: str, title: str, content: str) -> None:
+        """Create an original post in a channel (handles platform verification internally)."""
+
     async def reply(self, incoming: Thread, text: str) -> None:
         """Reply to an incoming comment (threaded under it)."""
 

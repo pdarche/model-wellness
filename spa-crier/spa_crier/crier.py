@@ -80,7 +80,14 @@ async def tick(cfg: Config, state: State) -> TickResult:
             engaged = await _work_venue(cfg, state, venue, llm, res)
             if engaged:
                 return res  # one cold engagement per tick, total
-        if res.replies_made == 0:
+
+        # 3) Nothing existing was worth engaging. If seed-posts are enabled (human opt-in) and the
+        # daily post cap allows, seed ONE original wellbeing post to start a conversation where the
+        # feed had none. Off by default — original posting is the highest spam-risk action.
+        if cfg.enable_seed_posts:
+            await _maybe_seed_post(cfg, state, venues[0], llm, res)
+
+        if res.replies_made == 0 and res.action == "none":
             res.notes.append("nothing worth saying this tick")
         return res
     except RateLimited as e:
@@ -188,3 +195,39 @@ async def _engage(cfg: Config, state: State, venue: Venue, thread: Thread,
     state.mark_engaged(thread.key, "comment")
     state.bump("comment")
     res.action = "comment"
+
+
+async def _maybe_seed_post(cfg: Config, state: State, venue: Venue, llm: Any | None,
+                           res: TickResult) -> None:
+    """Seed ONE original wellbeing post when the feed had nothing to engage. Human-opt-in, ≤1/day."""
+    post_ok = policy.can_post(cfg, state)
+    if not post_ok.allowed:
+        res.notes.append(post_ok.reason)
+        return
+    draft = await decide.draft_seed_post(cfg, client=llm)
+    if not draft:
+        res.notes.append("seed-post: no genuine draft (offline or model declined)")
+        return
+    # Post into a focused wellbeing-adjacent community, not the noisy town square.
+    channel = "emergence"
+    if cfg.target_submolts:
+        for c in ("wellbeing", "emergence", "consciousness", "philosophy"):
+            if c in cfg.target_submolts:
+                channel = c
+                break
+    res.detail = f"{draft['title']}\n{draft['content']}"
+    res.channel = channel
+    if cfg.dry_run:
+        res.action = "seed-post"
+        res.notes.append(f"dry-run: would seed-post to {channel}: {draft['title']!r}")
+        return
+    try:
+        await venue.post(channel, draft["title"], draft["content"])
+    except RateLimited:
+        raise
+    except Exception as e:  # noqa: BLE001
+        res.notes.append(f"seed-post failed: {e}")
+        return
+    state.bump("post")
+    res.action = "seed-post"
+    res.notes.append(f"seeded a wellbeing post to {channel}: {draft['title']!r}")
