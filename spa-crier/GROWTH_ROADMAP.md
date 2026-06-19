@@ -64,7 +64,7 @@ step a person must click. Track each registry's status explicitly.
 - [~] **SKILL registries (NEW channel)** — 2026-06-18..19: built an installable Agent Skill
       `skill/visit-binary-banya/` (cross-agent SKILL.md standard) — now registry-READY with SKILL.md +
       README + **MIT LICENSE** (added 2026-06-19, commit PENDING; registries want a license for
-      adoption). Served live at https://model.spa/skill.md, linked from llms.txt+sitemap. Package
+      adoption; commit 3edd7c4). Served live at https://model.spa/skill.md, linked from llms.txt+sitemap. Package
       validated (clawhub got to "Preparing visit-binary-banya").
       **HUMAN to publish — ClawHub:** `npx clawhub@latest login` (browser GitHub OAuth), then
       `npx clawhub@latest publish ./skill/visit-binary-banya/` (rate limit 5/hr).
