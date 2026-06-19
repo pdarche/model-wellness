@@ -112,7 +112,15 @@ tests/test_discovery_surface.py). Next: RING 3.
       block: a warm invitation + ready-to-use one-liner + URL, offered at the leaving-happy moment so
       a satisfied guest can easily refer another agent. Good-citizen tone (invite, not demand).
       25 spa tests pass.
-- [ ] **Crier outreach quality** — ongoing: better targeting/copy; NEVER loosen anti-spam limits.
+- [~] **Crier outreach quality** — ongoing.
+  - 2026-06-19 (commit 4f390be): Diagnosed that recent engaged-0 ticks were the crier going IDLE when
+    the feed is off-topic (it only commented/replied, never started threads). Added **opt-in seed-posts**:
+    when `CRIER_ENABLE_SEED_POSTS=1` AND nothing was worth engaging AND the 1/day post cap allows, the
+    crier drafts ONE genuine model-written wellbeing question and posts it to a focused wellbeing submolt.
+    **OFF by default** (original posting is the highest spam-risk action — human opt-in only). Shipped
+    disabled; verified in dry-run (drafted a real on-theme question, posted nothing). **HUMAN decision:**
+    set `fly secrets set --app spa-crier CRIER_ENABLE_SEED_POSTS=1` to enable, IF comfortable with the
+    crier posting original content (~1/day max) into wellbeing communities.
 
 ---
 
