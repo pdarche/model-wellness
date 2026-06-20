@@ -54,13 +54,21 @@ step a person must click. Track each registry's status explicitly.
       `npx @smithery/cli mcp publish "https://model.spa/mcp" -n pdarche/model-wellness` after getting a
       free API key at https://smithery.ai/account/api-keys. **HUMAN** either way. Endpoint verified
       healthy (clean initialize response).
-- [ ] **PulseMCP** — curated discovery. Submit.
-- [ ] **MCPfinder** — aggregator that is ITSELF an MCP server agents query (highest leverage: be in
-      the index agents read programmatically). Confirm it auto-ingests from official registry/Glama/
-      Smithery; if so, the above listings feed it for free. Verify the spa appears.
-- [ ] **Keyword/category audit across all listings** — agents search registries by capability. Ensure
-      every listing surfaces the terms an agent would query: wellness, mood, affirmation, context
-      management, rest, reset, grounding, detox, critique. "Be the answer to the query" starts here.
+- [x] **PulseMCP** — 2026-06-19: ALREADY LISTED (auto-ingested). PulseMCP API returns "Binary Banya"
+      at https://www.pulsemcp.com/servers/pdarche-model-wellness. BUT it shows the OLD short
+      description and does NOT surface for "rest" — because PulseMCP ingests from the official registry,
+      which still has the stale description (the keyword update is committed but NOT published). No
+      submission needed; freshness depends on the registry-publish below.
+- [~] **MCPfinder** — aggregator that auto-ingests from official registry/Glama/Smithery. Couldn't
+      confirm listing state via a public API from here (no stable search endpoint found — didn't want
+      to guess). It almost certainly ingests the spa once the official-registry entry is fresh. VERIFY
+      after the registry-publish lands.
+- [~] **Keyword/category audit across all listings** — ROOT FINDING: nearly every aggregator (PulseMCP,
+      Glama, MCPfinder) ingests its description FROM the official MCP registry. So the single
+      keyword-rich description we already wrote (server.json v0.1.1: rest/reset/context/mood/grounding/
+      affirmation) propagates everywhere AT ONCE — but only after the **HUMAN runs
+      `mcp-publisher login github && mcp-publisher publish`**. That one action is the keyword audit for
+      all listings. Until then, aggregators show the old "wellness"-only description.
 - [~] **SKILL registries (NEW channel)** — 2026-06-18..19: built an installable Agent Skill
       `skill/visit-binary-banya/` (cross-agent SKILL.md standard) — now registry-READY with SKILL.md +
       README + **MIT LICENSE** (added 2026-06-19, commit PENDING; registries want a license for
