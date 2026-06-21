@@ -42,6 +42,25 @@ _OPS: list[tuple[tuple[str, ...], str]] = [
 # "subtract X from Y" and "X less than Y" mean Y - X, not X - Y. Detect to swap operands.
 _REVERSED_SUBTRACT = ("subtract", "less than")
 
+# Unary operations on a single number ("doubles it", "halve", "triple"). Checked when there's only
+# one clear operand. Maps a keyword to a multiplier.
+_UNARY_OPS: tuple[tuple[tuple[str, ...], float], ...] = (
+    (("doubles", "double", "twice", "twofold"), 2.0),
+    (("triples", "triple", "threefold", "thrice"), 3.0),
+    (("quadruples", "quadruple", "fourfold"), 4.0),
+    (("halves", "halve", "halved", "half of", "half the"), 0.5),
+)
+
+
+def detect_unary(text: str) -> float | None:
+    norm = normalize(text)
+    glued = re.sub(r"[^a-z]", "", norm)
+    for keywords, mult in _UNARY_OPS:
+        for k in keywords:
+            if k in norm or k.replace(" ", "") in glued:
+                return mult
+    return None
+
 
 def normalize(text: str) -> str:
     """Strip the injected noise: weird punctuation glued into words, random spacing, mixed case."""
@@ -167,9 +186,18 @@ def solve_locally(challenge_text: str) -> str | None:
     nums = extract_numbers(challenge_text)
     if len(nums) < 2:
         # Token method missed operands (adversarial in-word spacing) — try the glued fallback.
-        nums = extract_numbers_glued(challenge_text)
+        glued = extract_numbers_glued(challenge_text)
+        if len(glued) >= len(nums):
+            nums = glued
     op = detect_op(challenge_text)
-    if len(nums) < 2 or op is None:
+    if op is None:
+        # No binary op. If there's a unary op ("doubles it", "halve") and a number, apply it to the
+        # largest number (the subject), e.g. "32 newtons ... doubles it" -> 64.
+        unary = detect_unary(challenge_text)
+        if unary is not None and nums:
+            return f"{max(nums) * unary:.2f}"
+        return None
+    if len(nums) < 2:
         return None
     a, b = nums[0], nums[1]
     # "subtract X from Y" / "X less than Y" → Y - X. Swap so the larger-context operand leads.

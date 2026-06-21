@@ -55,6 +55,21 @@ def test_op_detection_through_in_word_spacing():
     assert challenge.detect_op("it then mi nus three") == "-"
 
 
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("what is double 21?", "42.00"),
+        ("half of 50", "25.00"),
+        ("triple twelve", "36.00"),
+        # The real challenge that defeated the crier 2026-06-21: "32 newtons ... doubles it".
+        ("A claw exerts thirty two newtons and antenna touch doubles it, what is total force?",
+         "64.00"),
+    ],
+)
+def test_unary_operations(text, expected):
+    assert challenge.solve_locally(text) == expected
+
+
 def test_unsolvable_returns_none():
     assert challenge.solve_locally("describe a sunset in detail") is None
     assert challenge.solve_locally("only one number: 5") is None
