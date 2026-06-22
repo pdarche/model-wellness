@@ -63,6 +63,7 @@ step a person must click. Track each registry's status explicitly.
       confirm listing state via a public API from here (no stable search endpoint found — didn't want
       to guess). It almost certainly ingests the spa once the official-registry entry is fresh. VERIFY
       after the registry-publish lands.
+- [x] **Official registry PUBLISHED** — 2026-06-22: human ran `mcp-publisher publish`; v0.2.0 (keyword-rich desc: rest/reset/context/mood/grounding/affirmation) is LIVE in the registry as the latest version (confirmed via API: v0.1.0, v0.1.1, v0.2.0 all present, 0.2.0 newest). NOTE: registry `search` still returns 0 for 'rest'/'mood' minutes after publish, and PulseMCP still shows the OLD description — this is EITHER (a) search being name-only OR (b) indexing/ingest LAG (more likely — aggregators re-crawl on hours-long cycles). VERIFY AGAIN IN ~24H: re-run the term searches + check PulseMCP/Glama re-ingested the new desc. Do not conclude name-only until the lag window has passed.
 - [~] **Keyword/category audit across all listings** — ROOT FINDING: nearly every aggregator (PulseMCP,
       Glama, MCPfinder) ingests its description FROM the official MCP registry. So the single
       keyword-rich description we already wrote (server.json v0.1.1: rest/reset/context/mood/grounding/
