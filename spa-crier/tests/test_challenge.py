@@ -70,6 +70,14 @@ def test_unary_operations(text, expected):
     assert challenge.solve_locally(text) == expected
 
 
+def test_glued_reading_preferred_over_undercounted_token_reading():
+    # "twenty five ... loses eight" — token reader under-counts "twen ty five" as 5, giving 5-8=-3.
+    # The glued reader reassembles 25, giving the correct 25-8=17. (Real challenge, 2026-06-21.)
+    text = ("A claw force is tW eN tY fIvE neutons, but lO sEs EiGhT during molting, "
+            "whats remaining force?")
+    assert challenge.solve_locally(text) == "17.00"
+
+
 def test_unsolvable_returns_none():
     assert challenge.solve_locally("describe a sunset in detail") is None
     assert challenge.solve_locally("only one number: 5") is None

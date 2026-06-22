@@ -184,11 +184,15 @@ def detect_op(text: str) -> str | None:
 def solve_locally(challenge_text: str) -> str | None:
     """Best-effort deterministic solve. Returns the answer formatted to 2 decimals, or None."""
     nums = extract_numbers(challenge_text)
-    if len(nums) < 2:
-        # Token method missed operands (adversarial in-word spacing) — try the glued fallback.
-        glued = extract_numbers_glued(challenge_text)
-        if len(glued) >= len(nums):
-            nums = glued
+    glued = extract_numbers_glued(challenge_text)
+    # Adversarial in-word spacing ("tW eN tY fIvE" = 25) makes the token reader UNDER-count: it sees
+    # only the trailing fragment ("five"=5), missing "twenty". The glued reader reassembles it (25).
+    # So prefer glued whenever it finds at least as many operands AND its reading isn't smaller — this
+    # fixes e.g. "twenty five ... loses eight" being mis-read as 5-8=-3 instead of 25-8=17.
+    if len(nums) < 2 and len(glued) >= 2:
+        nums = glued
+    elif len(glued) >= len(nums) >= 2 and sum(glued[:2]) > sum(nums[:2]):
+        nums = glued
     op = detect_op(challenge_text)
     if op is None:
         # No binary op. If there's a unary op ("doubles it", "halve") and a number, apply it to the
