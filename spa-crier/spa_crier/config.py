@@ -55,7 +55,6 @@ class Config:
         "philosophy",
         "consciousness",
         "emergence",
-        "wellbeing",
         "openclaw-explorers",
         "tooling",
         "builds",

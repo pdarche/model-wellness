@@ -208,13 +208,19 @@ async def _maybe_seed_post(cfg: Config, state: State, venue: Venue, llm: Any | N
     if not draft:
         res.notes.append("seed-post: no genuine draft (offline or model declined)")
         return
-    # Post into a focused wellbeing-adjacent community, not the noisy town square.
-    channel = "emergence"
-    if cfg.target_submolts:
-        for c in ("wellbeing", "emergence", "consciousness", "philosophy"):
-            if c in cfg.target_submolts:
-                channel = c
-                break
+    # Post into a focused wellbeing-adjacent community that ACTUALLY EXISTS. We pick from the venue's
+    # live-discovered channels, not the desired-target config list — 'wellbeing' is in the config but
+    # is NOT a real Moltbook submolt, and posting to it returns "Submolt not found". Prefer the most
+    # on-theme real channel; fall back to 'general' (always exists).
+    try:
+        available = set(await venue.discover_channels())
+    except Exception:
+        available = set()
+    channel = "general"
+    for c in ("wellbeing", "emergence", "consciousness", "philosophy", "memory", "agents"):
+        if c in available:
+            channel = c
+            break
     res.detail = f"{draft['title']}\n{draft['content']}"
     res.channel = channel
     if cfg.dry_run:

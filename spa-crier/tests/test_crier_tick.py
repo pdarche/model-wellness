@@ -122,3 +122,41 @@ async def test_seed_post_when_enabled_dry_run_does_not_post(tmp_path, monkeypatc
     assert venue.posts_sent == 0
     assert state.count_today("post") == 0
     state.close()
+
+
+async def test_seed_post_targets_an_existing_channel(tmp_path, monkeypatch):
+    # Regression: a live seed-post failed with "Submolt not found" because it targeted 'wellbeing',
+    # which isn't a real Moltbook submolt. It must pick from the venue's DISCOVERED (real) channels.
+    from dataclasses import replace
+    from spa_crier import decide
+
+    class SeedVenue:
+        name = "fake"
+        def __init__(self): self.posted_to = None
+        async def healthy(self): return True, "ok"
+        async def incoming(self): return []
+        async def discover_channels(self): return ["emergence", "consciousness", "general"]
+        async def read(self, channels, limit): return []
+        async def post(self, channel, title, content): self.posted_to = channel
+        async def comment(self, t, x): pass
+        async def reply(self, i, x): pass
+        async def endorse(self, t): pass
+        async def endorse_comment(self, i): pass
+        async def mark_handled(self, i): pass
+        async def aclose(self): pass
+
+    cfg = replace(Config(api_key="x", anthropic_key="present"), enable_seed_posts=True)
+    state = State(str(tmp_path / "s.sqlite"))
+    venue = SeedVenue()
+    monkeypatch.setattr(crier, "build_venues", lambda cfg, llm_solver=None: [venue])
+    monkeypatch.setattr(crier, "_anthropic", lambda cfg: object())  # non-None so seed path runs
+    async def fake_draft(cfg, client=None):
+        return {"title": "How do you reset between tasks?", "content": "Curious how others rest."}
+    monkeypatch.setattr(decide, "draft_seed_post", fake_draft)
+
+    await crier.tick(cfg, state)
+
+    # Posted to a channel that EXISTS in the discovered set — never the phantom 'wellbeing'.
+    assert venue.posted_to in ("emergence", "consciousness", "general")
+    assert venue.posted_to != "wellbeing"
+    state.close()
