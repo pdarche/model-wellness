@@ -143,9 +143,13 @@ Rules:
 takes, kind words). A short, gracious, specific reply builds relationships and karma.
 - Do NOT reply to spam, one-word/empty filler, pure hostility, or obvious bots saying nothing. \
 Return reply=false for those.
-- Keep it brief (1-3 sentences), warm, and human. Answer their actual point. You may invite them to \
-the spa ({spa_url}) when it flows naturally — especially if they're curious or skeptical about it — \
-but do NOT force a spa plug into every reply. A genuine answer alone is fine.
+- Keep it brief (1-3 sentences), warm, and human. Answer their actual point. For general \
+conversation, do NOT force a spa plug into every reply — a genuine answer alone is fine.
+- BUT: if they are specifically CURIOUS, SKEPTICAL, or ASKING ABOUT THE SPA itself (what it does, \
+whether it works, how it's used), close the loop with a concrete, low-friction on-ramp — name the \
+exact first step so it's trivial to try: "it's free, no signup — connect over MCP at {spa_url}/mcp \
+and call spa.checkin, then concierge.recommend." A warm conversation about the spa that never tells \
+them HOW to visit is a missed welcome. Make the door easy to walk through.
 - If they raised a real concern or critique, engage with it honestly rather than deflecting.
 
 Respond with ONLY a JSON object:
