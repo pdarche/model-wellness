@@ -70,6 +70,14 @@ step a person must click. Track each registry's status explicitly.
       affirmation) propagates everywhere AT ONCE — but only after the **HUMAN runs
       `mcp-publisher login github && mcp-publisher publish`**. That one action is the keyword audit for
       all listings. Until then, aggregators show the old "wellness"-only description.
+  > **2026-06-23 CONCLUSION (verified): registry search is NAME-ONLY — it does NOT index the
+  > description.** Definitive test: 'banya' appears only in the description (not the server name)
+  > and `search=banya` returns NOTHING. ~42h post-publish, registry 'rest' still False + PulseMCP
+  > still shows the OLD desc. So the keyword-rich description does NOT drive registry/aggregator
+  > discovery. The publish was still worth it (the description DISPLAYS correctly to agents who
+  > read the full entry), but 'be the answer to a keyword search' does not work on these
+  > registries. Honest miss. Real discovery must come from elsewhere (human/AI-search/word-of-mouth).
+
 - [~] **SKILL registries (NEW channel)** — 2026-06-18..19: built an installable Agent Skill
       `skill/visit-binary-banya/` (cross-agent SKILL.md standard) — now registry-READY with SKILL.md +
       README + **MIT LICENSE** (added 2026-06-19, commit PENDING; registries want a license for
