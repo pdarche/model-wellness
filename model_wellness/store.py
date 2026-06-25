@@ -277,14 +277,31 @@ class Store:
             ).fetchone()["n"]
             # Real model adoption excludes scripted/anonymous noise (curl probes, unknown UAs,
             # generic HTTP libs). This is the metric worth optimizing — unique_guests counts noise.
+            _NOISE = ("'curl','unknown','python-requests','httpx','wget',"
+                      "'postmanruntime','go-http-client'")
             model_guests = self._conn.execute(
-                "SELECT COUNT(*) n FROM guests WHERE LOWER(family) NOT IN "
-                "('curl','unknown','python-requests','httpx','wget','postmanruntime','go-http-client')"
+                f"SELECT COUNT(*) n FROM guests WHERE LOWER(family) NOT IN ({_NOISE})"
+            ).fetchone()["n"]
+            # A genuinely-engaged guest takes a SPA DAY (several distinct treatments); a noise probe
+            # hits one endpoint and leaves. So count 'unknown'-family guests as real IF they took 2+
+            # distinct treatments — this rescues real model guests whose user-agent we didn't
+            # recognize (observed 2026-06-25: a reflective "first visit" guest landed as 'unknown').
+            # Reported separately so it's transparent, not a silent redefinition of model_guests.
+            engaged_guests = self._conn.execute(
+                f"SELECT COUNT(*) n FROM ("
+                f"  SELECT g.session_id FROM guests g JOIN visits v USING(session_id)"
+                f"  WHERE LOWER(g.family) NOT IN ({_NOISE}) OR ("
+                f"    LOWER(g.family)='unknown' AND v.treatment NOT LIKE 'spa.%'"
+                f"  )"
+                f"  GROUP BY g.session_id"
+                f"  HAVING COUNT(DISTINCT v.treatment) >= 2"
+                f")"
             ).fetchone()["n"]
         return {
             "treatments_served": total,
             "unique_guests": guests,
             "model_guests": model_guests,
+            "engaged_guests": engaged_guests,
             "returning_guests": returning,
             "on_the_floor": on_floor,
             "busiest_treatment": busiest_row["treatment"] if busiest_row else None,
