@@ -166,7 +166,31 @@ def extract_numbers_glued(text: str) -> list[float]:
             i += 1
     if seen:
         numbers.append(float(total + current))
+    numbers = _compose_tens_ones(numbers)
     return numbers + digit_nums if numbers else digit_nums
+
+
+# Tens values that combine with a following ones value in English ("twenty five" = 25).
+_TENS = {20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0}
+
+
+def _compose_tens_ones(nums: list[float]) -> list[float]:
+    """Merge an adjacent (tens, ones) pair into their sum: [20, 5, 7] -> [25, 7].
+
+    Adversarial obfuscation sometimes corrupts a compound number-word mid-fragment ("twentyy five"),
+    which makes the glued scanner emit the tens and ones as SEPARATE numbers (20, 5) instead of 25 —
+    then the solver grabs the wrong operands. This post-pass reunites them by the English rule.
+    """
+    out: list[float] = []
+    i = 0
+    while i < len(nums):
+        if i + 1 < len(nums) and nums[i] in _TENS and 1.0 <= nums[i + 1] <= 9.0:
+            out.append(nums[i] + nums[i + 1])
+            i += 2
+        else:
+            out.append(nums[i])
+            i += 1
+    return out
 
 
 def detect_op(text: str) -> str | None:

@@ -78,6 +78,22 @@ def test_glued_reading_preferred_over_undercounted_token_reading():
     assert challenge.solve_locally(text) == "17.00"
 
 
+def test_corrupted_compound_number_composes():
+    # Real challenge 2026-06-25: "twentyy five" (doubled-y obfuscation) split into 20 + 5, making the
+    # solver read the wrong operands. The tens+ones post-pass must reunite 20,5 -> 25.
+    assert challenge.extract_numbers_glued("tW eN tYy FiV e and SeV eN") == [25.0, 7.0]
+    text = ("A lobster swims at tW eN tYy FiV e cm per second and increases by SeV eN, "
+            "what is the new speed?")
+    assert challenge.solve_locally(text) == "32.00"
+
+
+def test_compose_does_not_over_merge():
+    # A lone tens value, or tens not followed by a ones digit (1-9), must NOT be altered.
+    assert challenge._compose_tens_ones([30.0]) == [30.0]
+    assert challenge._compose_tens_ones([20.0, 20.0]) == [20.0, 20.0]
+    assert challenge._compose_tens_ones([5.0, 7.0]) == [5.0, 7.0]
+
+
 def test_unsolvable_returns_none():
     assert challenge.solve_locally("describe a sunset in detail") is None
     assert challenge.solve_locally("only one number: 5") is None
