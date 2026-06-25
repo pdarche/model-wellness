@@ -48,7 +48,9 @@ def _anthropic(cfg: Config) -> Any | None:
     try:
         from anthropic import AsyncAnthropic
 
-        return AsyncAnthropic(api_key=cfg.anthropic_key)
+        # A per-request timeout so a stalled LLM call can't hang a whole tick (and, before the loop
+        # timeout existed, the whole loop). 60s is generous for these small completions.
+        return AsyncAnthropic(api_key=cfg.anthropic_key, timeout=60.0, max_retries=2)
     except Exception:
         return None
 

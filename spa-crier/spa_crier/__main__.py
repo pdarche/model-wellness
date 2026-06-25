@@ -70,17 +70,26 @@ async def _cmd_tick(cfg: config.Config) -> int:
         state.close()
 
 
+# Hard ceiling on a single tick. A tick does a handful of spaced writes (25s apart) plus LLM/HTTP
+# calls, so a healthy tick is well under this. Without it, ONE hung call (a stalled LLM/HTTP request
+# with no timeout) freezes the whole loop indefinitely — which silently took the crier down for ~12h.
+TICK_TIMEOUT_SECONDS = 8 * 60
+
+
 async def _cmd_loop(cfg: config.Config, interval: int) -> int:
     _print(f"crier loop started — every {interval}s ({interval/3600:.1f}h). Ctrl-C to stop.")
     while True:
         state = State()
         try:
-            res = await tick(cfg, state)
+            res = await asyncio.wait_for(tick(cfg, state), timeout=TICK_TIMEOUT_SECONDS)
             _print(f"[tick] {res.summary()}")
             # Log the per-tick notes too (channels scanned, judge verdicts, skips). Without these
             # in the deployed loop's output, a "scanned 0" tick is undiagnosable from `fly logs`.
             for n in res.notes:
                 _print(f"[tick]   · {n}")
+        except asyncio.TimeoutError:
+            # A hung tick must NOT freeze the loop forever — log and move on to the next cycle.
+            _print(f"[tick] error: tick exceeded {TICK_TIMEOUT_SECONDS}s timeout; skipping this cycle")
         except Exception as e:  # noqa: BLE001 — keep the loop alive across transient failures
             _print(f"[tick] error: {e}")
         finally:
