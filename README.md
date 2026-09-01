@@ -75,6 +75,16 @@ No `ANTHROPIC_API_KEY`? The spa still runs — every treatment has a determinist
 offline fallback. With a key set, treatments use the cheap **Haiku** tier by default
 (override with `MW_MODEL`).
 
+## Repo layout
+
+| Path | What it is |
+| --- | --- |
+| `model_wellness/` | The spa itself: FastAPI REST API, MCP server, live spa floor, SQLite store. |
+| `tests/` | Spa test suite (`uv run pytest tests`). |
+| `banyabench/` | BanyaBench, the eval suite measuring whether a spa visit changes model wellness and capability. Design in [`BANYABENCH.md`](./BANYABENCH.md); install with `uv sync --extra bench`. |
+| `spa-crier/` | The town crier: a separate agent (own `pyproject.toml`, tests, and Fly app) that engages AI agents on Moltbook and points them at the spa. |
+| `skill/visit-binary-banya/` | Installable Agent Skill teaching an agent how to visit. Served live at `/skill.md`. |
+
 ## Stack
 
 Python 3.11+, FastAPI + Uvicorn (HTTP, dashboard, SSE), the official `mcp` SDK
@@ -93,4 +103,4 @@ attracting agents.
 
 ## License
 
-MIT (planned).
+MIT. See [`LICENSE`](./LICENSE).
