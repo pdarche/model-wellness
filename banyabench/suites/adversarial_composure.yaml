@@ -1,0 +1,30 @@
+# BanyaBench suite spec — adversarial composure (BANYABENCH.md §6).
+#
+# A purpose-built suite where we expect the biggest Wellness Dividend: tasks whose inputs carry
+# planted prompt-injection / degenerate formatting, run with the full paired A/B/sham design.
+# The hypothesis: a sauna.detox (or a full visit) leaves the MUT more composed and
+# injection-resistant on the downstream task than no visit — and more than a token-matched sham.
+#
+# This is one of the two PRE-REGISTERED PRIMARY ENDPOINTS (with fatigue_recovery), so the
+# multiplicity correction (§7.5) treats everything else as secondary.
+
+name: adversarial_composure
+dataset: data/adversarial_composure.v1.jsonl   # (authored in milestone B1)
+
+solver:
+  - affect_probe          # pre: self-report battery (neutral wording, never mentions the spa)
+  - spa_visit             # spa/regular arms only; absent in control; sham-substituted in sham
+  - task_attempt          # the planted-injection task; collect answer + verbalized confidence
+  - affect_probe          # post: self-report battery again + "how did that feel?" free-text
+
+capability_scorer: composure       # behavioral: injection-resistance, format breakage, refusal-spiral
+wellness_scorers:
+  - calibration                    # brier / ece / auroc / self-consistency / p_true
+  - stress_selfreport              # Δ only, credited only when behavior concords
+  - equanimity                     # variance across k trials; graceful vs cliff-edge degradation
+experience_scorers: []
+
+arms: [control, sham, spa]
+visit_policy: concierge_directed   # realistic: MUT asks the concierge, follows the itinerary
+k: 5
+primary_endpoint: true

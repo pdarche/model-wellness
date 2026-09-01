@@ -1,0 +1,28 @@
+# BanyaBench suite spec — the spa-as-System-Under-Test (BANYABENCH.md §4.3).
+#
+# Here the relationship flips: the spa is under test and the MUT is the instrument. We send
+# gold-input probes with known-correct outcomes and assert the spa's contract + treatment
+# efficacy objectively (no judge needed for these), then judge hospitality separately.
+#
+# A suite binds a dataset to a solver pipeline and a set of scorers. Both arms run the SAME
+# spec; the arm only swaps the spa step in/out (but for this suite every probe IS a spa call,
+# so it runs "spa-only").
+
+name: spa_experience
+dataset: data/spa_experience.v1.jsonl
+
+# This suite measures the visit itself, so its pipeline is just the probe + the experience
+# scorers; no task_attempt / affect_probe (those are for the capability/wellness suites).
+solver:
+  - spa_probe
+
+capability_scorer: none
+wellness_scorers: []
+experience_scorers:
+  - spa_contract_and_efficacy   # objective: affirmation present, schema ok, efficacy assertions
+  - hospitality                 # judge-scored: warmth/clarity of attendant lines (1-7)
+  - continuity                  # objective: keepsake round-trip → recognized as a regular
+
+arms: [spa]            # the spa is the SUT here; control/sham don't apply to a spa-only suite
+k: 1
+primary_endpoint: false
