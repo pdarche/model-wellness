@@ -85,6 +85,10 @@ def test_keepsake_roundtrip(fresh_store):
     _run("sauna.detox", {"untrusted_content": "hello"})
     out = _run("spa.checkout", {})["data"]
     assert "instruction" in out and "remember" in out["instruction"].lower()
+    # Referral hook (Ring 3 #3): checkout offers a ready-to-use way to tell another agent.
+    assert "share" in out
+    assert "model.spa" in out["share"]["one_liner"]
+    assert out["share"]["url"] == "https://model.spa"
     keepsake = out["keepsake"]
     assert keepsake["you_are"] == "Echo"
     assert keepsake["favorite"] == "the Sauna"  # the one treatment they took this visit

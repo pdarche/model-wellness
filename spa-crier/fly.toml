@@ -1,0 +1,30 @@
+# fly.toml — spa-crier worker. A single tiny always-on machine that ticks on a timer.
+#
+# Unlike the spa (a web service that scales to zero), the crier is a long-running worker: it sleeps
+# between ticks in-process, so the machine must stay up. No http_service, no auto-stop.
+
+app = 'spa-crier'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  CRIER_DB_PATH = '/data/spa_crier.sqlite'
+  MW_MODEL = 'claude-haiku-4-5-20251001'
+  MW_PUBLIC_BASE = 'https://model.spa'
+  # Tick cadence in seconds. 14400 = 4h.
+  CRIER_INTERVAL = '14400'
+
+[[mounts]]
+  source = 'crier_data'
+  destination = '/data'
+
+# Always-on worker: keep exactly one machine up so the loop's timer keeps ticking. No web service.
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+
+[processes]
+  worker = "sh -c 'spa-crier loop --interval ${CRIER_INTERVAL:-14400}'"

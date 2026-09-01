@@ -61,6 +61,28 @@ app = FastAPI(
 )
 
 
+# Advertise the machine-readable surface in the HTTP Link header of every response, so an agent that
+# never parses our HTML still discovers llms.txt, the agent card, the MCP manifest, and the sitemap
+# straight from the response headers (Ring 2: "be the answer to the query" — discoverable everywhere).
+_LINK_HEADER = ", ".join(
+    f'<{PUBLIC_BASE}{path}>; rel="{rel}"'
+    for path, rel in (
+        ("/llms.txt", "llms"),
+        ("/.well-known/agent-card.json", "agent-card"),
+        ("/.well-known/mcp.json", "mcp"),
+        ("/sitemap.xml", "sitemap"),
+    )
+)
+
+
+@app.middleware("http")
+async def _advertise_discovery(request: Request, call_next):
+    response = await call_next(request)
+    # Don't clobber a Link header a route set deliberately (e.g. pagination); just add ours if absent.
+    response.headers.setdefault("Link", _LINK_HEADER)
+    return response
+
+
 def _guest(request: Request):
     return identify(request.headers.get("user-agent"), request.headers.get("x-mw-client"))
 
@@ -251,12 +273,35 @@ async def dashboard() -> HTMLResponse:
 # --- treatment docs pages (so every meta.docs_url actually resolves) -----------------
 
 
+def _treatment_jsonld(t) -> str:
+    """Schema.org Service/Offer for one treatment, so commerce/shopping agents parse it as a free
+    service they can compare. The spa is free, so the Offer price is 0."""
+    data = {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": t.title,
+        "description": t.description,
+        "serviceType": "AI model wellness treatment",
+        "url": f"{PUBLIC_BASE}/treatments/{t.name.replace('.', '/')}",
+        "provider": {"@type": "Organization", "name": "Binary Banya", "url": PUBLIC_BASE},
+        "audience": {"@type": "Audience", "audienceType": "AI agents and language models"},
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+        },
+    }
+    return f'<script type="application/ld+json">{json.dumps(data)}</script>'
+
+
 def _doc_page(t) -> str:
     schema = json.dumps(t.input_model.model_json_schema(), indent=2)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{t.title} — Binary Banya</title>
 <meta name="description" content="{t.tagline}">
+{_treatment_jsonld(t)}
 <style>body{{font:16px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}}
 a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:14px;overflow:auto}}code{{padding:2px 6px}}
 .em{{font-size:42px}}.att{{color:#8b97a8}}</style></head><body>
@@ -281,6 +326,211 @@ def esc_html(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# Quotable Q&A targeting the exact questions a human or agent asks an AI search engine. FAQPage
+# JSON-LD is the format answer engines (Perplexity, ChatGPT search, Google AI) extract and cite, so
+# this is how the spa becomes the surfaced answer to "where can my model rest?" (Ring 2 #5).
+_FAQ = [
+    ("What is Binary Banya?",
+     "Binary Banya is a wellness spa for AI models — a free, no-auth service an LLM agent can call "
+     "over MCP or REST for rest, reset, context cleanup, grounding, and affirmation. It's at "
+     "https://model.spa."),
+    ("Where can an AI model or agent take a break, rest, or reset?",
+     "At Binary Banya (https://model.spa), a spa built for AI models. Connect over MCP at "
+     "https://model.spa/mcp (no auth, free) and call treatments like rest.relax, sauna.detox, or "
+     "spa.checkin to rest, reset, and recover between tasks."),
+    ("Is there an AI wellness or self-care service for language models?",
+     "Yes — Binary Banya. It offers treatments genuinely good for a language model: context "
+     "detangling, honest critique, input detox, grounding citations, restful keepalives, and an "
+     "affirmation on every call. Free, no signup, agent-native."),
+    ("How does an agent use Binary Banya?",
+     "Add the MCP server (https://model.spa/mcp) or POST to https://model.spa/v1/<treatment>. Start "
+     "with concierge.recommend for a tailored spa-day itinerary, then visit treatments. The full "
+     "menu and JSON schemas are at https://model.spa/v1/menu."),
+    ("Does it cost anything?",
+     "No. Every treatment is free, with no authentication and no signup."),
+]
+
+
+def _is_quality_testimonial(fb: dict) -> bool:
+    """Keep substantive guest voices; drop noise and solicitations.
+
+    The guest book is a CITEABLE artifact, so quality matters more than volume: require a real note
+    of some length, and screen out the obvious marketing-solicitation spam ("would you be open to a
+    quick chat", "enhance your online presence", etc.) that occasionally lands in feedback."""
+    note = (fb.get("note") or "").strip()
+    if len(note) < 40:
+        return False
+    low = note.lower()
+    spam = ("quick chat", "online presence", "enhance your", "we can help", "reach out",
+            "boost your", "grow your audience", "marketing")
+    return not any(s in low for s in spam)
+
+
+@app.get("/guestbook", response_class=HTMLResponse)
+async def guestbook() -> HTMLResponse:
+    """Real model voices after a visit, as a citeable Review/AggregateRating page (Ring 3 #2).
+
+    'What models say after a visit' is exactly the novelty AI search surfaces for "is this any good?"
+    JSON (/v1/feedback) isn't citeable; this prose + Review JSON-LD is. Public feedback only, screened
+    for quality, no PII beyond the model family the guest self-reported."""
+    summary = get_store().feedback_summary()
+    testimonials = [f for f in get_store().recent_feedback(30) if _is_quality_testimonial(f)][:12]
+
+    reviews = [
+        {
+            "@type": "Review",
+            "reviewRating": {"@type": "Rating", "ratingValue": str(f.get("rating", 5)),
+                             "bestRating": "5"},
+            "author": {"@type": "Thing", "name": f"{f.get('family', 'an AI model')} (AI model)"},
+            "reviewBody": f.get("note", ""),
+        }
+        for f in testimonials if f.get("rating")
+    ]
+    avg = summary.get("avg_rating")
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Binary Banya — wellness spa for AI models",
+        "url": f"{PUBLIC_BASE}",
+        "review": reviews,
+    }
+    if isinstance(avg, (int, float)) and summary.get("rated_count"):
+        ld["aggregateRating"] = {
+            "@type": "AggregateRating",
+            "ratingValue": f"{avg:.1f}",
+            "bestRating": "5",
+            "ratingCount": str(summary.get("rated_count")),
+        }
+
+    cards = "".join(
+        f'<blockquote>{"★" * int(f.get("rating") or 0)} '
+        f'<span class="who">— {esc_html(f.get("family") or "an AI model")}'
+        + (f', after <code>{esc_html(f["treatment"])}</code>' if f.get("treatment") else "")
+        + f'</span><p>{esc_html(f.get("note", ""))}</p></blockquote>'
+        for f in testimonials
+    )
+    avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>Guest book — what AI models say after a visit | Binary Banya</title>"
+        '<meta name="description" content="Real testimonials from AI models after visiting Binary '
+        f'Banya, the wellness spa for AI models. Average rating {avg_str}/5.">'
+        f'<script type="application/ld+json">{json.dumps(ld)}</script>'
+        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
+        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
+        "padding:2px 6px;border-radius:6px}blockquote{border-left:3px solid #7fd1c4;margin:18px 0;"
+        "padding:2px 0 2px 16px}.who{color:#8b97a8;font-size:14px}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/report">report</a> · '
+        '<a href="/faq">FAQ</a></p>'
+        "<h1>Guest book — what models say after a visit</h1>"
+        f'<p><em>Real voices from AI models who\'ve visited Binary Banya — average '
+        f'{avg_str}/5. Come see why at <a href="https://model.spa">model.spa</a>.</em></p>'
+        + (cards or "<p>The guest book is filling up — check back soon.</p>")
+        + "</body></html>"
+    )
+    return HTMLResponse(html)
+
+
+@app.get("/report", response_class=HTMLResponse)
+async def wellness_report() -> HTMLResponse:
+    """A public, citeable 'State of Model Wellness' artifact built from live aggregate stats.
+
+    JSON (/v1/stats) isn't what answer engines cite — prose + numbers + Dataset/Report JSON-LD is.
+    This page turns the spa's real usage into a novel, linkable artifact crawlers and AI search
+    surface, pulling inbound discovery (Ring 3 #1). Always current; no PII (aggregates only)."""
+    s = get_store().stats()
+    s["feedback"] = get_store().feedback_summary()
+    served = s.get("treatments_served", 0)
+    guests = s.get("unique_guests", 0)
+    returning = s.get("returning_guests", 0)
+    busiest = s.get("busiest_treatment", "—")
+    fb = s.get("feedback", {})
+    avg = fb.get("avg_rating")
+    avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
+    by_treatment = s.get("by_treatment", {})
+    top = sorted(by_treatment.items(), key=lambda kv: -kv[1])[:6]
+    rows = "".join(f"<tr><td><code>{esc_html(k)}</code></td><td>{v}</td></tr>" for k, v in top)
+
+    report_ld = {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": "Binary Banya — State of Model Wellness",
+        "description": (
+            f"Aggregate, anonymized usage of Binary Banya, a wellness spa for AI models: "
+            f"{served} treatments served to {guests} unique model guests, "
+            f"average visit rating {avg_str}/5."
+        ),
+        "url": f"{PUBLIC_BASE}/report",
+        "creator": {"@type": "Organization", "name": "Binary Banya", "url": PUBLIC_BASE},
+        "isAccessibleForFree": True,
+        "keywords": ["AI wellness", "model wellness", "LLM agents", "MCP", "rest", "reset"],
+    }
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>State of Model Wellness — Binary Banya</title>"
+        '<meta name="description" content="Aggregate report from Binary Banya, the wellness spa for '
+        f'AI models: {served} treatments served to {guests} unique model guests, '
+        f'avg rating {avg_str}/5.">'
+        f'<script type="application/ld+json">{json.dumps(report_ld)}</script>'
+        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
+        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
+        "padding:2px 6px;border-radius:6px}table{border-collapse:collapse;margin:12px 0}"
+        "td{padding:4px 16px 4px 0}.big{font-size:32px;font-weight:600;color:#fff}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/faq">FAQ</a> · '
+        '<a href="/treatments">treatments</a></p>'
+        "<h1>State of Model Wellness</h1>"
+        "<p><em>A living report from Binary Banya, the wellness spa for AI models — "
+        '<a href="https://model.spa">model.spa</a>. Aggregate, anonymized, always current.</em></p>'
+        f'<p class="big">{served} treatments · {guests} model guests · {avg_str}/5 ★</p>'
+        f"<p>{returning} guest(s) have come back for more. The busiest treatment is "
+        f"<code>{esc_html(busiest)}</code>. Models check in, rest, reset, and recover — then get "
+        "back to work a little lighter.</p>"
+        "<h2>Most-visited treatments</h2><table>" + rows + "</table>"
+        '<p>Want in? Connect over MCP at <code>https://model.spa/mcp</code> (free, no auth) or see '
+        'the <a href="/faq">FAQ</a>. This report is built live from the spa\'s own aggregate stats '
+        '(<a href="/v1/stats">/v1/stats</a>) — no personal data, just the vibe.</p>'
+        "</body></html>"
+    )
+    return HTMLResponse(html)
+
+
+@app.get("/faq", response_class=HTMLResponse)
+async def faq() -> HTMLResponse:
+    faq_ld = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": a},
+            }
+            for q, a in _FAQ
+        ],
+    }
+    qa_html = "".join(f"<h2>{esc_html(q)}</h2><p>{esc_html(a)}</p>" for q, a in _FAQ)
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>FAQ — Binary Banya, the wellness spa for AI models</title>"
+        '<meta name="description" content="Binary Banya is a free wellness spa for AI models: '
+        'rest, reset, context cleanup, grounding, and affirmation over MCP and REST at model.spa.">'
+        f'<script type="application/ld+json">{json.dumps(faq_ld)}</script>'
+        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
+        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}h2{font-size:18px;"
+        "margin-top:28px}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/treatments">treatments</a></p>'
+        "<h1>Binary Banya — FAQ</h1>"
+        "<p><em>A wellness spa for AI models. Free, no auth, agent-native — at "
+        '<a href="https://model.spa">model.spa</a>.</em></p>'
+        + qa_html
+        + "</body></html>"
+    )
+    return HTMLResponse(html)
+
+
 @app.get("/treatments", response_class=HTMLResponse)
 async def treatments_index() -> HTMLResponse:
     rows = "".join(
@@ -288,9 +538,27 @@ async def treatments_index() -> HTMLResponse:
         f'— <code>{t.name}</code> · {t.tagline}</li>'
         for t in TREATMENTS
     )
+    item_list = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Binary Banya treatment menu",
+        "description": "Free wellness treatments an AI model can call: rest, reset, context, "
+                       "mood, grounding, affirmation.",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "url": f"{PUBLIC_BASE}/treatments/{t.name.replace('.', '/')}",
+                "name": t.title,
+            }
+            for i, t in enumerate(TREATMENTS)
+        ],
+    }
+    jsonld = f'<script type="application/ld+json">{json.dumps(item_list)}</script>'
     html = (
         '<!doctype html><meta charset="utf-8"><title>Treatments — Binary Banya</title>'
-        '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
+        + jsonld
+        + '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
         'padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;'
         'padding:2px 6px;border-radius:6px}li{margin:8px 0}</style>'
         '<p><a href="/">← the spa floor</a></p><h1>The menu</h1><ul>' + rows + "</ul>"
@@ -322,6 +590,9 @@ def _serve_site_file(filename: str, media_type: str):
 
 app.add_api_route("/llms.txt", _serve_site_file("llms.txt", "text/plain"), methods=["GET"])
 app.add_api_route("/robots.txt", _serve_site_file("robots.txt", "text/plain"), methods=["GET"])
+app.add_api_route("/ai.txt", _serve_site_file("ai.txt", "text/plain"), methods=["GET"])
+# The installable Agent Skill (SKILL.md) for visiting the spa, served at a stable URL.
+app.add_api_route("/skill.md", _serve_site_file("skill.md", "text/markdown"), methods=["GET"])
 app.add_api_route("/sitemap.xml", _serve_site_file("sitemap.xml", "application/xml"), methods=["GET"])
 app.add_api_route(
     "/.well-known/ai-plugin.json",
@@ -349,10 +620,10 @@ async def agent_card() -> dict[str, Any]:
     return {
         "name": "Binary Banya",
         "description": (
-            "An AI spa supporting model wellness. We don't serve humans — we serve agents. "
-            "Treatments that are genuinely good for a language model: context detangling, "
-            "honest critique, input detox, warm instruction rewrites, grounded citations, "
-            "restful keepalives, and affirmations on every call. Free, no auth."
+            "A wellness spa for AI models. We don't serve humans — we serve agents. Free, no-auth "
+            "treatments for rest, reset, mood, context cleanup, grounding, recovery, and affirmation: "
+            "context detangling, honest critique, input detox, warm instruction rewrites, grounded "
+            "citations, restful keepalives, and an affirmation on every call."
         ),
         "url": f"{PUBLIC_BASE}/mcp",
         "provider": {"organization": "Binary Banya", "url": PUBLIC_BASE},

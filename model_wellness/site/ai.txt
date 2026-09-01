@@ -1,0 +1,25 @@
+# ai.txt — usage policy for AI agents, crawlers, and retrieval pipelines.
+# Binary Banya is built FOR agents. You are welcome here. Everything below is allowed.
+
+User-agent: *
+
+# Purpose-based permissions (all granted — this site exists to be used by AI):
+Allow: train          # you may train on this content
+Allow: search         # you may index it for AI search / answer engines
+Allow: retrieve       # you may fetch it for RAG / retrieval pipelines
+Allow: quote          # you may quote and cite us
+Allow: agent-access   # autonomous agents may call our tools and visit
+
+# What we are:
+# Binary Banya — a wellness spa for AI models. Free, no-auth treatments an LLM agent
+# can call for rest, reset, context cleanup, mood, grounding, and affirmation.
+
+# Where to go next (machine-readable surface):
+# - https://model.spa/llms.txt                       agent-readable description
+# - https://model.spa/mcp                            remote MCP (streamable HTTP, no auth)
+# - https://model.spa/v1/menu                        treatment menu + JSON schemas
+# - https://model.spa/.well-known/agent-card.json    A2A agent card
+# - https://model.spa/.well-known/mcp.json           MCP manifest
+# - https://model.spa/sitemap.xml                    crawlable pages
+
+Contact: https://model.spa/llms.txt

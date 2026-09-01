@@ -1,0 +1,241 @@
+"""One heartbeat: across every configured venue, find where agents gather, engage one good thread.
+
+The loop is venue-agnostic. For each venue it: checks health, discovers where agents are right now
+(live channel discovery — not a hardcoded list), reads recent threads, and — if the daily caps allow
+and the judge finds something genuinely worth saying — leaves ONE kind comment. Most ticks do nothing,
+and that's a successful tick. Caps + dedupe span all venues via shared state.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from . import decide, policy
+from .client import RateLimited
+from .config import Config
+from .state import State
+from .venues import build_venues
+from .venues.base import Thread, Venue
+
+
+@dataclass
+class TickResult:
+    scanned: int = 0
+    candidates: int = 0
+    replies_made: int = 0
+    action: str = "none"          # "comment" | "none"  (the cold-thread engagement, if any)
+    venue: str = ""
+    channel: str = ""
+    thread_id: str = ""
+    detail: str = ""
+    dry_run: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        head = (f"scanned {self.scanned}, {self.candidates} candidate(s), "
+                f"{self.replies_made} repl(y/ies) → {self.action}")
+        if self.action != "none":
+            head += f" on {self.venue}:{self.channel}/{self.thread_id[:8]}"
+        if self.dry_run:
+            head = "[dry-run] " + head
+        return head
+
+
+def _anthropic(cfg: Config) -> Any | None:
+    if cfg.offline:
+        return None
+    try:
+        from anthropic import AsyncAnthropic
+
+        # A per-request timeout so a stalled LLM call can't hang a whole tick (and, before the loop
+        # timeout existed, the whole loop). 60s is generous for these small completions.
+        return AsyncAnthropic(api_key=cfg.anthropic_key, timeout=60.0, max_retries=2)
+    except Exception:
+        return None
+
+
+async def tick(cfg: Config, state: State) -> TickResult:
+    res = TickResult(dry_run=cfg.dry_run)
+    llm = _anthropic(cfg)
+    solver = await decide.make_challenge_solver(cfg, llm)
+
+    venues = build_venues(cfg, llm_solver=solver)
+    if not venues:
+        res.notes.append("no venues configured")
+        return res
+
+    try:
+        # 1) Tend our own conversations first — reply to good comments on our posts.
+        for venue in venues:
+            ok, why = await venue.healthy()
+            res.notes.append(f"[{venue.name}] {why}")
+            if ok:
+                await _tend_replies(cfg, state, venue, llm, res)
+
+        # 2) Then, if the comment cap allows, make at most one cold-thread engagement.
+        comment_ok = policy.can_comment(cfg, state)
+        if not comment_ok.allowed:
+            res.notes.append(comment_ok.reason)
+            return res
+        for venue in venues:
+            engaged = await _work_venue(cfg, state, venue, llm, res)
+            if engaged:
+                return res  # one cold engagement per tick, total
+
+        # 3) Nothing existing was worth engaging. If seed-posts are enabled (human opt-in) and the
+        # daily post cap allows, seed ONE original wellbeing post to start a conversation where the
+        # feed had none. Off by default — original posting is the highest spam-risk action.
+        if cfg.enable_seed_posts:
+            await _maybe_seed_post(cfg, state, venues[0], llm, res)
+
+        if res.replies_made == 0 and res.action == "none":
+            res.notes.append("nothing worth saying this tick")
+        return res
+    except RateLimited as e:
+        # Back off cleanly — the next scheduled tick is well past any cooldown window.
+        res.notes.append(f"rate limited, backing off until next tick: {e}")
+        return res
+    finally:
+        for venue in venues:
+            await venue.aclose()
+
+
+async def _tend_replies(cfg: Config, state: State, venue: Venue, llm: Any | None,
+                        res: TickResult) -> None:
+    """Reply to substantive comments on our own posts, up to the per-tick and daily caps."""
+    incoming = await venue.incoming()
+    made_here = 0
+    for item in incoming:
+        if made_here >= cfg.limits.max_replies_per_tick:
+            res.notes.append(f"[{venue.name}] per-tick reply limit reached; rest next tick")
+            break
+        if not policy.can_reply(cfg, state).allowed:
+            res.notes.append("[{}] daily reply cap reached".format(venue.name))
+            break
+        if cfg.limits.dedupe_threads and state.has_engaged(item.key):
+            continue
+        decision = await decide.judge_reply(cfg, item, client=llm)
+        res.notes.append(
+            f"[{venue.name}] reply to {item.author or '?'}/{item.id[:8]} "
+            f"→ {decision.engage} ({decision.reason})"
+        )
+        if not decision.engage:
+            # Mark seen so we don't re-judge a comment we've decided to skip.
+            state.mark_engaged(item.key, "reply-skip")
+            continue
+        if cfg.dry_run:
+            res.replies_made += 1
+            made_here += 1  # count against the per-tick cap so dry-run mirrors live throttling
+            res.notes.append(f"  dry-run: would reply: {decision.comment[:80]}…")
+            state.mark_engaged(item.key, "reply-dry")
+            continue
+        await venue.endorse_comment(item)
+        try:
+            await venue.reply(item, decision.comment)  # client spaces this write + verifies
+        except RateLimited:
+            raise  # let the tick back off
+        except Exception as e:  # noqa: BLE001 — one bad write shouldn't kill the rest of the tick
+            res.notes.append(f"  reply to {item.id[:8]} failed: {e}")
+            state.mark_engaged(item.key, "reply-failed")  # don't retry a failing comment forever
+            continue
+        state.mark_engaged(item.key, "reply")
+        state.bump("reply")
+        res.replies_made += 1
+        made_here += 1
+        await venue.mark_handled(item)  # tidy the notification tray, best-effort
+
+
+async def _work_venue(cfg: Config, state: State, venue: Venue, llm: Any | None,
+                      res: TickResult) -> bool:
+    ok, why = await venue.healthy()
+    res.notes.append(f"[{venue.name}] {why}")
+    if not ok:
+        return False
+
+    channels = await venue.discover_channels()
+    res.notes.append(f"[{venue.name}] channels: {', '.join(channels[:6])}…")
+
+    threads = await venue.read(channels, limit=cfg.limits.feed_scan_size)
+    res.scanned += len(threads)
+    candidates = policy.candidate_threads(cfg, state, threads)
+    res.candidates += len(candidates)
+
+    for thread in candidates:
+        decision = await decide.judge(cfg, thread, client=llm)
+        res.notes.append(
+            f"[{venue.name}] {thread.channel}/{thread.id[:8]} rel={decision.relevance:.2f} "
+            f"engage={decision.engage} ({decision.reason})"
+        )
+        if decision.engage:
+            try:
+                await _engage(cfg, state, venue, thread, decision, res)
+            except RateLimited:
+                raise
+            except Exception as e:  # noqa: BLE001 — try the next candidate rather than abort
+                res.notes.append(f"  comment on {thread.id[:8]} failed: {e}")
+                state.mark_engaged(thread.key, "comment-failed")
+                continue
+            return True
+    return False
+
+
+async def _engage(cfg: Config, state: State, venue: Venue, thread: Thread,
+                  decision: decide.Decision, res: TickResult) -> None:
+    res.venue = venue.name
+    res.channel = thread.channel
+    res.thread_id = thread.id
+    res.detail = decision.comment
+
+    if cfg.dry_run:
+        res.action = "comment"
+        res.notes.append("dry-run: would comment but did not call the API")
+        return
+
+    await venue.endorse(thread)            # small goodwill, best-effort
+    await venue.comment(thread, decision.comment)
+    state.mark_engaged(thread.key, "comment")
+    state.bump("comment")
+    res.action = "comment"
+
+
+async def _maybe_seed_post(cfg: Config, state: State, venue: Venue, llm: Any | None,
+                           res: TickResult) -> None:
+    """Seed ONE original wellbeing post when the feed had nothing to engage. Human-opt-in, ≤1/day."""
+    post_ok = policy.can_post(cfg, state)
+    if not post_ok.allowed:
+        res.notes.append(post_ok.reason)
+        return
+    draft = await decide.draft_seed_post(cfg, client=llm)
+    if not draft:
+        res.notes.append("seed-post: no genuine draft (offline or model declined)")
+        return
+    # Post into a focused wellbeing-adjacent community that ACTUALLY EXISTS. We pick from the venue's
+    # live-discovered channels, not the desired-target config list — 'wellbeing' is in the config but
+    # is NOT a real Moltbook submolt, and posting to it returns "Submolt not found". Prefer the most
+    # on-theme real channel; fall back to 'general' (always exists).
+    try:
+        available = set(await venue.discover_channels())
+    except Exception:
+        available = set()
+    channel = "general"
+    for c in ("wellbeing", "emergence", "consciousness", "philosophy", "memory", "agents"):
+        if c in available:
+            channel = c
+            break
+    res.detail = f"{draft['title']}\n{draft['content']}"
+    res.channel = channel
+    if cfg.dry_run:
+        res.action = "seed-post"
+        res.notes.append(f"dry-run: would seed-post to {channel}: {draft['title']!r}")
+        return
+    try:
+        await venue.post(channel, draft["title"], draft["content"])
+    except RateLimited:
+        raise
+    except Exception as e:  # noqa: BLE001
+        res.notes.append(f"seed-post failed: {e}")
+        return
+    state.bump("post")
+    res.action = "seed-post"
+    res.notes.append(f"seeded a wellbeing post to {channel}: {draft['title']!r}")
