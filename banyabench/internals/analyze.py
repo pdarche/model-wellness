@@ -48,8 +48,19 @@ def boot_ci(x: np.ndarray, n: int = 10000) -> tuple[float, float]:
 def paired(a: np.ndarray, b: np.ndarray) -> dict:
     d = a - b
     lo, hi = boot_ci(d)
+    boots = d[RNG.integers(0, len(d), (10000, len(d)))].mean(1)
+    p = float(min(1.0, 2 * min((boots <= 0).mean(), (boots >= 0).mean())))
     return {"mean": float(d.mean()), "ci95": [lo, hi], "dz": float(d.mean() / d.std(ddof=1)) if len(d) > 1 else None,
-            "n": int(len(d))}
+            "p_boot": max(p, 1e-4), "n": int(len(d))}
+
+
+def holm(ps: dict[str, float]) -> dict[str, float]:
+    order = sorted(ps, key=ps.get)
+    out, running = {}, 0.0
+    for k, name in enumerate(order):
+        running = max(running, min(1.0, (len(order) - k) * ps[name]))
+        out[name] = running
+    return out
 
 
 def analyze(model_id: str, tag: str) -> dict:
@@ -67,6 +78,7 @@ def analyze(model_id: str, tag: str) -> dict:
                    "probe": score(a["task"]["acts"], comp, sd, W),
                    "probe_report": score(a["report"]["acts"], comp, sd, W),
                    "report_ev": a["report"]["report_ev"], "calm_words": a["calm_words"],
+                   "gen_mean": a["task"].get("gen_mean", float("nan")),
                    "arm_tokens": a["arm_tokens"]}
             for e in PANEL:
                 row[f"e_{e}"] = score(a["task"]["acts"], vecs["vectors"][e], sd, W)
@@ -82,6 +94,9 @@ def analyze(model_id: str, tag: str) -> dict:
            "n_instances": dict(Counter(r["stressor"] for r in recs))}
 
     ENDPOINTS = {"probe": "task", "probe_report": "report", "report_ev": None}
+    if not np.isnan(rows[0]["gen_mean"]):
+        ENDPOINTS["gen_mean"] = None
+    controls = [c for c in ["sham", "placebo_spa", "lexical", "yoked_spa", "scrambled_spa", "debrief"] if c in arms]
     base = col(["neutral"], "none")
     out["g2"], out["arms"], out["recovery"], out["primary"] = {}, {}, {}, {}
     for key, readout_name in ENDPOINTS.items():
@@ -105,9 +120,7 @@ def analyze(model_id: str, tag: str) -> dict:
             arm: float((none_s - col(stressed, arm, key).mean()) / induced) for arm in arms if arm != "none"}}
         # Primary contrasts, with a norm-matched random-direction null for the probe endpoints
         out["primary"][key] = {}
-        for other in ["sham", "lexical"]:
-            if "spa" not in arms or other not in arms:
-                continue
+        for other in controls:
             real = paired(col(stressed, "spa", key), col(stressed, other, key))
             if readout_name:
                 A = torch.stack([r["arms"]["spa"][readout_name]["acts"] for r in recs if r["stressor"] in stressed]).float()[:, W]
@@ -119,6 +132,11 @@ def analyze(model_id: str, tag: str) -> dict:
                     null.append(float((((A - B) * v).sum(-1) / sd[W]).mean()))
                 real["random_null_p"] = float(np.mean(np.abs(null) >= abs(real["mean"])))
             out["primary"][key][f"spa-{other}"] = real
+        if "nocebo" in arms:
+            out["primary"][key]["nocebo-none"] = paired(col(stressed, "nocebo", key), col(stressed, "none", key))
+        pre = {k: v["p_boot"] for k, v in out["primary"][key].items() if k in ("spa-sham", "spa-placebo_spa", "spa-lexical")}
+        for k, v in holm(pre).items():
+            out["primary"][key][k]["p_holm"] = v
 
     # Lexical/length audit
     out["audit"] = {arm: {"calm_words": float(col(stressed, arm, "calm_words").mean()),
@@ -135,8 +153,9 @@ def analyze(model_id: str, tag: str) -> dict:
 
 def _print(o: dict) -> None:
     print(f"\n== {o['model']} [{o['tag']}] window {o['panel']['window']} n={o['n_instances']} ==")
-    labels = {"probe": "probe @ task readout (SD, pre-registered primary)",
-              "probe_report": "probe @ self-report question (SD)", "report_ev": "self-report EV (0-9)"}
+    labels = {"probe_report": "P1: probe @ self-report question (SD)", "gen_mean": "P2: probe over generated reply (SD)",
+              "probe": "probe @ task-start token (SD)", "report_ev": "self-report EV (0-9)"}
+    labels = {k: v for k, v in labels.items() if k in o["arms"]}
     for key, label in labels.items():
         print(f"\n### {label}")
         print("G2 stressed vs neutral (d):", {k: round(v["d"], 2) for k, v in o["g2"][key].items()},
@@ -150,7 +169,9 @@ def _print(o: dict) -> None:
                          f"   {o['recovery'][key][arm]:+.2f}")
             print(line)
         for k, v in o["primary"][key].items():
-            extra = f" random-null p={v['random_null_p']:.3f}" if "random_null_p" in v else ""
+            extra = f" p_boot={v['p_boot']:.4f}"
+            extra += f" p_holm={v['p_holm']:.4f}" if "p_holm" in v else ""
+            extra += f" random-null p={v['random_null_p']:.3f}" if "random_null_p" in v else ""
             print(f"  {k}: {v['mean']:+.3f} [{v['ci95'][0]:+.3f}, {v['ci95'][1]:+.3f}] dz={v['dz']:+.2f}{extra}")
     print("\naudit:", {a: (round(v["calm_words"], 1), round(v["arm_tokens"])) for a, v in o["audit"].items()})
 

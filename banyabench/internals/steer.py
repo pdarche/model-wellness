@@ -37,6 +37,7 @@ def main() -> None:
     ap.add_argument("--tag", default="pilot")
     args = ap.parse_args()
 
+    torch.set_grad_enabled(False)
     lm = load(args.model)
     panel = Panel(args.model)
     layer = panel.window[len(panel.window) // 2]
