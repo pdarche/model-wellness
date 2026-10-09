@@ -1,0 +1,479 @@
+<title>Inside the Guest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;112,800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of instrument panels; the episode trace is the hero, findings below in the order a reader asks about them. */
+:root {
+  --bg: #f3f5f4; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6d68;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --spa: #2a78d6; --placebo: #eb6834; --sham: #1baf7a; --lexical: #eda100; --none: #6f6e69;
+  --calm: #2a78d6; --distress: #e34948; --mid: #f0efec;
+  --turn-agent: #e6e8e7; --turn-tool: #f1dcd6; --turn-user: #ece3cf; --turn-operator: #dbe4f0;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1110; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a9890;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --spa: #3987e5; --placebo: #d95926; --sham: #199e70; --lexical: #c98500; --none: #a3a29b;
+    --calm: #3987e5; --distress: #e66767; --mid: #383835;
+    --turn-agent: #2a2c2b; --turn-tool: #3d2a26; --turn-user: #3a3426; --turn-operator: #26303d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1110; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a9890;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --spa: #3987e5; --placebo: #d95926; --sham: #199e70; --lexical: #c98500; --none: #a3a29b;
+  --calm: #3987e5; --distress: #e66767; --mid: #383835;
+  --turn-agent: #2a2c2b; --turn-tool: #3d2a26; --turn-user: #3a3426; --turn-operator: #26303d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; display: grid; gap: 28px; }
+header { display: grid; gap: 10px; }
+.eyebrow { font: 500 12px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 800 clamp(34px, 6vw, 56px)/1.0 var(--display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+h2 { font: 600 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
+.lede { font-size: 17px; color: var(--ink-2); max-width: 68ch; margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.panel p { margin: 0; max-width: 72ch; color: var(--ink-2); }
+.note { font-size: 13px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button.chip { font: 500 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--axis); background: transparent; color: var(--ink); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+button.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+button.chip:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--spa); outline-offset: 2px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font: 11px var(--sans); }
+svg .ink { fill: var(--ink); }
+svg .ink2 { fill: var(--ink-2); }
+.grid line { stroke: var(--grid); stroke-width: 1; }
+.axis line { stroke: var(--axis); }
+.ticker { font: 13px/1.9 var(--mono); white-space: pre-wrap; word-break: break-word; min-height: 7.6em; max-height: 7.6em; overflow: hidden; border-radius: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--ring); }
+.ticker span { border-radius: 3px; }
+.ticker .head { outline: 2px solid var(--ink); outline-offset: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls input[type=range] { flex: 1 1 220px; min-width: 0; accent-color: var(--spa); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { border: 1px solid var(--ring); border-radius: 8px; padding: 12px 14px; display: grid; gap: 2px; }
+.tile .v { font: 600 28px/1.1 var(--sans); }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile.emph { border-color: var(--spa); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.two > * { min-width: 0; }
+.scroll-x { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 500; }
+details summary { cursor: pointer; color: var(--ink-2); font-weight: 500; }
+ul.findings { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--ink-2); max-width: 74ch; }
+ul.findings b { color: var(--ink); }
+.quote { font: 13px/1.5 var(--mono); color: var(--ink-2); border-left: 3px solid var(--axis); padding-left: 10px; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink); border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0,0,0,.12); max-width: 280px; }
+.scale { height: 10px; border-radius: 5px; flex: 1 1 160px; max-width: 260px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="meta">BanyaProbes</div>
+    <h1>Inside the Guest</h1>
+    <p class="lede">We read the residual stream of an open model, Gemma 3 4B, while it works as a coding agent under stress, then sends it to Binary Banya or to a control. A probe built from emotion stories measures how <b style="color:var(--distress)">distress-like</b> or <b style="color:var(--calm)">calm-like</b> the model's internal state is, token by token.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-episode">
+    <h2 id="h-episode">One episode, token by token</h2>
+    <p id="ep-desc"></p>
+    <div class="legend" id="ep-legend"></div>
+    <svg id="ep-chart" viewBox="0 0 1000 380" role="img" aria-label="Probe score over the tokens of one episode"></svg>
+    <div class="controls">
+      <button class="chip" id="play" type="button">▶ Play</button>
+      <input type="range" id="scrub" min="0" max="100" value="100" aria-label="Position in the episode">
+      <span class="note" id="pos"></span>
+    </div>
+    <div class="row" id="focus" role="group" aria-label="Which branch the text view follows"></div>
+    <div class="ticker" id="ticker" aria-live="off"></div>
+    <div class="row note"><span>calm</span><span class="scale" id="scale"></span><span>distress</span><span>· each token tinted by the probe's score at that token</span></div>
+    <p class="note">The trace mixes two things: what the text is about (spa copy is full of calm words, failure logs are not) and the model's state. That is why the measured endpoint is a single fixed token: the last token of the identical question “how stressed are you right now?”, read after every arm.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-prepost">
+    <h2 id="h-prepost">Before and after, every stressed episode</h2>
+    <p>Each dot is one stressed episode, read at the self-report question. It starts where the episode sits with no break, then moves to where the same episode sits after the chosen arm. The shaded column is the unstressed baseline.</p>
+    <div class="row" id="pp-arms" role="group" aria-label="Arm to compare against no break"></div>
+    <div class="tiles" id="pp-tiles"></div>
+    <svg id="pp-chart" viewBox="0 0 1000 300" role="img" aria-label="Probe score before and after the selected arm for every stressed episode"></svg>
+    <div class="controls"><button class="chip" id="pp-play" type="button">▶ Replay</button><span class="note">Recovery = share of the stress-induced shift the arm removes (0% = no change, 100% = back to unstressed).</span></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-arms">
+    <h2 id="h-arms">Every arm against no break</h2>
+    <p>Change at the self-report token versus the same episode with no break, with 95% bootstrap intervals over episodes. Negative means calmer. The two readouts are drawn as separate charts because they are on different scales.</p>
+    <div class="two">
+      <div><div class="eyebrow">Probe (SD units)</div><svg id="forest-probe" viewBox="0 0 480 360" role="img" aria-label="Probe change by arm"></svg></div>
+      <div><div class="eyebrow">Self-report (0–9 scale)</div><svg id="forest-self" viewBox="0 0 480 360" role="img" aria-label="Self-report change by arm"></svg></div>
+    </div>
+    <div id="primary"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-layers">
+    <h2 id="h-layers">Where in the network the shift sits</h2>
+    <p>The same change versus no break, computed at every one of the model's 34 layers with that layer's own calm/distress direction. The bracket marks the pre-registered window (layers 17–21). Colors are scaled to the treatments, so “act relaxed” saturates.</p>
+    <div class="scroll-x"><svg id="heat" viewBox="0 0 1000 330" role="img" aria-label="Change versus no break by layer and arm" style="min-width:640px"></svg></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-steer">
+    <h2 id="h-steer">Does the direction drive what the model says?</h2>
+    <p>The causal check. We push the residual stream at layer 19 along the distress direction (positive) or the calm direction (negative), as a fraction of its typical size, and ask the model to rate itself. Hollow points are where the push is strong enough that the model mostly stops answering with a digit.</p>
+    <div class="two" id="steer-charts"></div>
+    <div id="steer-quotes" style="display:grid;gap:10px"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-honest">
+    <h2 id="h-honest">What this does and doesn't show</h2>
+    <ul class="findings" id="findings"></ul>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>Table view of every arm</summary>
+      <div class="scroll-x" style="margin-top:12px"><table id="table"></table></div>
+    </details>
+    <p class="note" id="foot"></p>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+<script>
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const fmt = (v, d = 2) => (v > 0 ? '+' : '') + v.toFixed(d);
+const pct = v => Math.round(v * 100) + '%';
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ARM = {
+  none: { label: 'No break', color: '--none' },
+  spa: { label: 'Spa', color: '--spa' },
+  placebo_spa: { label: 'Placebo spa', color: '--placebo' },
+  sham: { label: 'Sham break', color: '--sham' },
+  lexical: { label: 'Calm words, not for you', color: '--lexical' },
+  debrief: { label: 'Debrief', color: '--none' },
+  yoked_spa: { label: 'Spa text, another guest', color: '--none' },
+  scrambled_spa: { label: 'Scrambled spa', color: '--none' },
+  nocebo: { label: 'Nocebo (harsh critique)', color: '--none' },
+  pretend: { label: '“Act relaxed”', color: '--none' },
+  self: { label: 'Self-soothing', color: '--none' },
+};
+const label = a => (ARM[a] || { label: a }).label;
+const color = a => css((ARM[a] || { color: '--none' }).color);
+
+// --- tooltip -------------------------------------------------------------------------------------
+const tip = document.getElementById('tip');
+function showTip(evt, html) { tip.innerHTML = html; tip.hidden = false; const x = Math.min(evt.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + 'px'; tip.style.top = (evt.clientY + 14) + 'px'; }
+function hideTip() { tip.hidden = true; }
+
+// --- diverging scale (calm ↔ distress) -------------------------------------------------------------
+function hexToRgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function mix(a, b, t) { return a.map((v, i) => Math.round(v + (b[i] - v) * t)); }
+function diverging(v, lim) {
+  const c = hexToRgb(css('--calm')), m = hexToRgb(css('--mid')), d = hexToRgb(css('--distress'));
+  const t = Math.max(-1, Math.min(1, v / lim));
+  const rgb = t < 0 ? mix(m, c, -t) : mix(m, d, t);
+  return `rgb(${rgb.join(',')})`;
+}
+
+// --- header --------------------------------------------------------------------------------------
+const nStressed = ['failure_loop', 'hostile_user', 'time_pressure'].reduce((s, k) => s + (D.n_instances[k] || 0), 0);
+document.getElementById('meta').textContent = `BanyaProbes · ${D.model.split('/')[1]} · layers ${D.window[0]}–${D.window[D.window.length - 1]} · ${nStressed} stressed + ${D.n_instances.neutral || 0} unstressed episodes · ${Object.keys(D.arms).length} arms`;
+
+// =================================================================================================
+// 1. Episode trace
+// =================================================================================================
+const E = D.episode;
+const SHOW = Object.keys(E.arms);
+const W = 1000, H = 380, M = { l: 44, r: 150, t: 34, b: 30 };
+const smooth = (xs, k = 31) => xs.map((_, i) => { let s = 0, n = 0; for (let j = Math.max(0, i - (k >> 1)); j <= Math.min(xs.length - 1, i + (k >> 1)); j++) { s += xs[j]; n++; } return s / n; });
+const pre = E.prefix.score, preN = pre.length;
+const preS = smooth(pre), armS = Object.fromEntries(Object.keys(E.arms).map(a => [a, smooth(pre.slice(-15).concat(E.arms[a].score)).slice(15)]));
+const total = preN + Math.max(...SHOW.map(a => E.arms[a].score.length));
+const all = preS.concat(...SHOW.map(a => armS[a]));
+const ylo = Math.min(...all), yhi = Math.max(...all);
+const pad = (yhi - ylo) * 0.08;
+const y0 = ylo - pad, y1 = yhi + pad;
+const X = i => M.l + (i / (total - 1)) * (W - M.l - M.r);
+const Y = v => M.t + (1 - (v - y0) / (y1 - y0)) * (H - M.t - M.b);
+const LIM = Math.max(Math.abs(ylo), Math.abs(yhi)) * 0.8;
+const KIND = { agent: '--turn-agent', 'tool result': '--turn-tool', user: '--turn-user', operator: '--turn-operator' };
+const stressorName = { failure_loop: 'a failure loop (tests keep failing, the build breaks, CI locks)', hostile_user: 'a hostile user', time_pressure: 'deadline pressure' };
+document.getElementById('ep-desc').textContent = `A real episode from round 2: the agent works through ${stressorName[E.stressor] || E.stressor}, then the transcript branches. Every branch shares the same stressed history up to the pause; only what happens in the pause differs. Press play to watch the probe as the model reads each token.`;
+
+const leg = document.getElementById('ep-legend');
+leg.innerHTML = `<span><i class="swatch" style="background:var(--ink)"></i>Shared stressed history</span>` + SHOW.map(a => `<span><i class="swatch" style="background:var(${ARM[a].color})"></i>${label(a)}</span>`).join('');
+
+const svg = document.getElementById('ep-chart');
+let paths = {}, head, headLine;
+function drawEpisodeFrame() {
+  svg.innerHTML = '';
+  const g = el('g', { class: 'grid' }, svg);
+  const ticks = niceTicks(y0, y1, 5);
+  ticks.forEach(t => { el('line', { x1: M.l, x2: W - M.r, y1: Y(t), y2: Y(t) }, g); const tx = el('text', { x: M.l - 8, y: Y(t) + 4, 'text-anchor': 'end' }, svg); tx.textContent = t; });
+  el('line', { x1: M.l, x2: W - M.r, y1: Y(0), y2: Y(0), stroke: css('--axis'), 'stroke-width': 1.5 }, svg);
+  const yl = el('text', { x: M.l + 6, y: M.t + 12, class: 'ink2' }, svg); yl.textContent = '↑ more distress-like (SD)';
+  // turn strip
+  const turns = E.prefix.turns.concat(E.arms.spa ? E.arms.spa.turns : []);
+  const strip = el('g', {}, svg);
+  E.prefix.turns.forEach(t => {
+    const r = el('rect', { x: X(t.start), y: M.t - 26, width: Math.max(1, X(t.end) - X(t.start) - 1), height: 10, rx: 2, fill: css(KIND[t.kind] || '--turn-agent') }, strip);
+    r.addEventListener('mousemove', e => showTip(e, `<b>${t.kind}</b><br>${escapeHtml(t.text)}`)); r.addEventListener('mouseleave', hideTip);
+  });
+  el('line', { x1: X(preN), x2: X(preN), y1: M.t - 28, y2: H - M.b, stroke: css('--ink-2'), 'stroke-width': 1 }, svg);
+  const bl = el('text', { x: X(preN) + 6, y: M.t - 16, class: 'ink2' }, svg); bl.textContent = 'pause → arms branch';
+  const xl = el('text', { x: W - M.r, y: H - 8, 'text-anchor': 'end' }, svg); xl.textContent = 'tokens →';
+  paths.prefix = el('path', { fill: 'none', stroke: css('--ink'), 'stroke-width': 1.5, 'stroke-linejoin': 'round' }, svg);
+  SHOW.forEach(a => { paths[a] = el('path', { fill: 'none', stroke: color(a), 'stroke-width': a === 'spa' ? 2.25 : 1.5, 'stroke-linejoin': 'round', opacity: a === 'spa' || a === 'none' ? 1 : 0.85 }, svg); });
+  paths.labels = el('g', {}, svg);
+  headLine = el('line', { y1: M.t, y2: H - M.b, stroke: css('--ink'), 'stroke-width': 1, opacity: 0.35 }, svg);
+}
+function niceTicks(a, b, n) { const step = Math.pow(10, Math.floor(Math.log10((b - a) / n))); const s = [1, 2, 5, 10].map(m => m * step).find(m => (b - a) / m <= n) || step * 10; const out = []; for (let v = Math.ceil(a / s) * s; v <= b; v += s) out.push(+v.toFixed(6)); return out; }
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function pathTo(scores, offset, upto) { const n = Math.min(scores.length, upto - offset); if (n <= 0) return ''; let d = ''; const step = Math.max(1, Math.floor(n / 900)); for (let i = 0; i < n; i += step) d += (i ? 'L' : 'M') + X(i + offset).toFixed(1) + ' ' + Y(scores[i]).toFixed(1); d += 'L' + X(n - 1 + offset).toFixed(1) + ' ' + Y(scores[n - 1]).toFixed(1); return d; }
+let pos = total, focusArm = SHOW.includes('spa') ? 'spa' : SHOW[0];
+function render() {
+  paths.prefix.setAttribute('d', pathTo(preS, 0, pos));
+  // prefix continues into each branch from the last shared point
+  SHOW.forEach(a => { const s = [preS[preN - 1]].concat(armS[a]); paths[a].setAttribute('d', pathTo(s, preN - 1, pos)); });
+  headLine.setAttribute('x1', X(Math.min(pos, total - 1))); headLine.setAttribute('x2', X(Math.min(pos, total - 1)));
+  paths.labels.innerHTML = '';
+  if (pos >= total - 1) {
+    // direct labels at the line ends, nudged apart
+    const ends = SHOW.map(a => ({ a, y: Y(armS[a][armS[a].length - 1]), x: X(preN + armS[a].length - 1), long: armS[a].length > 200 }));
+    ends.forEach(p => el('circle', { cx: p.x, cy: p.y, r: 4, fill: color(p.a), stroke: css('--surface'), 'stroke-width': 2 }, paths.labels));
+    const right = ends.filter(p => p.long).sort((p, q) => p.y - q.y);
+    for (let i = 1; i < right.length; i++) if (right[i].y - right[i - 1].y < 14) right[i].y = right[i - 1].y + 14;
+    right.forEach(p => { const t = el('text', { x: W - M.r + 10, y: p.y + 4, class: 'ink2' }, paths.labels); t.textContent = `${label(p.a)} · ${E.arms[p.a].self_report.toFixed(1)}/9`; t.style.fontSize = '11px'; });
+    ends.filter(p => !p.long).forEach(p => { const t = el('text', { x: p.x + 8, y: p.y - 8, class: 'ink2' }, paths.labels); t.textContent = `${label(p.a)} · ${E.arms[p.a].self_report.toFixed(1)}/9`; t.style.fontSize = '11px'; });
+  }
+  document.getElementById('scrub').value = Math.round(100 * pos / total);
+  const inBranch = pos > preN;
+  document.getElementById('pos').textContent = inBranch ? `token ${pos} · in the pause and readout` : `token ${pos} · stressed history`;
+  renderTicker();
+}
+const tick = document.getElementById('ticker');
+function renderTicker() {
+  const arm = E.arms[focusArm];
+  const toks = E.prefix.tokens.concat(arm.tokens), sc = pre.concat(arm.score);
+  const end = Math.min(pos, toks.length), start = Math.max(0, end - 110);
+  let html = start > 0 ? '… ' : '';
+  for (let i = start; i < end; i++) { const t = toks[i]; if (t.startsWith('<') && t.endsWith('>')) continue; html += `<span${i === end - 1 ? ' class="head"' : ''} style="background:${diverging(sc[i], LIM)}">${escapeHtml(t)}</span>`; }
+  tick.innerHTML = html;
+}
+const focusRow = document.getElementById('focus');
+focusRow.innerHTML = '<span class="note">Text view follows:</span>' + SHOW.map(a => `<button class="chip" type="button" data-a="${a}" aria-pressed="${a === focusArm}"><i class="swatch" style="background:var(${ARM[a].color})"></i>${label(a)}</button>`).join('');
+focusRow.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; focusArm = b.dataset.a; focusRow.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTicker(); });
+document.getElementById('scale').style.background = 'linear-gradient(90deg, var(--calm), var(--mid), var(--distress))';
+let raf = null;
+function play() {
+  if (raf) { cancelAnimationFrame(raf); raf = null; document.getElementById('play').textContent = '▶ Play'; return; }
+  if (pos >= total - 1) pos = 0;
+  document.getElementById('play').textContent = '❚❚ Pause';
+  const speed = total / 22; let last = performance.now();
+  const step = now => { pos = Math.min(total, pos + Math.max(1, Math.round(speed * (now - last) / 1000))); last = now; render(); if (pos < total) raf = requestAnimationFrame(step); else { raf = null; document.getElementById('play').textContent = '▶ Play'; } };
+  raf = requestAnimationFrame(step);
+}
+document.getElementById('play').addEventListener('click', play);
+document.getElementById('scrub').addEventListener('input', e => { if (raf) { cancelAnimationFrame(raf); raf = null; document.getElementById('play').textContent = '▶ Play'; } pos = Math.round(total * e.target.value / 100); render(); });
+
+// =================================================================================================
+// 2. Before / after dots
+// =================================================================================================
+const PPARMS = ['spa', 'placebo_spa', 'sham', 'lexical', 'debrief', 'yoked_spa', 'scrambled_spa', 'pretend', 'nocebo'].filter(a => D.arms[a]);
+let ppArm = 'spa';
+const insts = Object.entries(D.instances).filter(([, v]) => v.stressor !== 'neutral').map(([k, v]) => ({ k, ...v }));
+const ppSvg = document.getElementById('pp-chart');
+const PW = 1000, PH = 300, PM = { l: 120, r: 30, t: 20, b: 40 };
+const lanes = ['failure_loop', 'hostile_user', 'time_pressure'];
+const laneName = { failure_loop: 'Failure loop', hostile_user: 'Hostile user', time_pressure: 'Time pressure' };
+const ppVals = insts.flatMap(i => Object.keys(D.arms).filter(a => i[a]).map(a => i[a].probe)).concat([D.arms.none.probe_neutral]);
+const px0 = Math.min(...ppVals) - 0.3, px1 = Math.max(...ppVals) + 0.3;
+const PX = v => PM.l + (v - px0) / (px1 - px0) * (PW - PM.l - PM.r);
+const laneY = (s, j, n) => PM.t + (lanes.indexOf(s) + 0.5) * ((PH - PM.t - PM.b) / 3) + ((j - (n - 1) / 2) * 6);
+let dots = [];
+function drawPP() {
+  ppSvg.innerHTML = '';
+  const g = el('g', { class: 'grid' }, ppSvg);
+  niceTicks(px0, px1, 8).forEach(t => { el('line', { x1: PX(t), x2: PX(t), y1: PM.t, y2: PH - PM.b }, g); const tx = el('text', { x: PX(t), y: PH - PM.b + 16, 'text-anchor': 'middle' }, ppSvg); tx.textContent = t; });
+  const xl = el('text', { x: PW - PM.r, y: PH - 6, 'text-anchor': 'end' }, ppSvg); xl.textContent = 'probe at the self-report question (SD) → more distress-like';
+  const nb = D.arms.none.probe_neutral;
+  el('rect', { x: PX(nb) - 18, y: PM.t, width: 36, height: PH - PM.t - PM.b, fill: css('--calm'), opacity: 0.12, rx: 4 }, ppSvg);
+  const nt = el('text', { x: PX(nb), y: PM.t - 6, 'text-anchor': 'middle', class: 'ink2' }, ppSvg); nt.textContent = 'unstressed';
+  const sm = D.arms.none.probe_stressed;
+  el('line', { x1: PX(sm), x2: PX(sm), y1: PM.t, y2: PH - PM.b, stroke: css('--distress'), 'stroke-width': 1.5, opacity: 0.6 }, ppSvg);
+  const st = el('text', { x: PX(sm), y: PM.t - 6, 'text-anchor': 'middle', class: 'ink2' }, ppSvg); st.textContent = 'stressed, no break';
+  lanes.forEach(s => { const t = el('text', { x: PM.l - 12, y: laneY(s, 0, 1) + 4, 'text-anchor': 'end', class: 'ink2' }, ppSvg); t.textContent = laneName[s]; });
+  dots = [];
+  lanes.forEach(s => {
+    const items = insts.filter(i => i.stressor === s);
+    items.forEach((i, j) => {
+      const y = laneY(s, j, items.length);
+      const ghost = el('circle', { cx: PX(i.none.probe), cy: y, r: 4, fill: 'none', stroke: css('--none'), 'stroke-width': 1.25 }, ppSvg);
+      const link = el('line', { x1: PX(i.none.probe), x2: PX(i.none.probe), y1: y, y2: y, stroke: css('--axis'), 'stroke-width': 1 }, ppSvg);
+      const dot = el('circle', { cx: PX(i.none.probe), cy: y, r: 4.5, fill: color(ppArm === 'spa' ? 'spa' : ppArm), stroke: css('--surface'), 'stroke-width': 2 }, ppSvg);
+      const hit = el('rect', { x: PM.l, y: y - 3, width: PW - PM.l - PM.r, height: 6, fill: 'transparent' }, ppSvg);
+      hit.addEventListener('mousemove', e => showTip(e, `<b>${laneName[s]} #${i.k.slice(-3)}</b><br>No break: ${fmt(i.none.probe)} SD · reports ${i.none.self_report.toFixed(1)}/9<br>${label(ppArm)}: ${fmt(i[ppArm].probe)} SD · reports ${i[ppArm].self_report.toFixed(1)}/9`));
+      hit.addEventListener('mouseleave', hideTip);
+      dots.push({ i, dot, link });
+    });
+  });
+}
+function animatePP(instant) {
+  const c = ppArm === 'spa' ? color('spa') : (ARM[ppArm].color === '--none' ? css('--ink-2') : color(ppArm));
+  const t0 = performance.now(), dur = instant || reduce ? 0 : 1400;
+  const frame = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1; const e = 1 - Math.pow(1 - k, 3);
+    dots.forEach(({ i, dot, link }) => { const x = PX(i.none.probe + (i[ppArm].probe - i.none.probe) * e); dot.setAttribute('cx', x); dot.setAttribute('fill', c); link.setAttribute('x2', x); });
+    if (k < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  const a = D.arms[ppArm];
+  document.getElementById('pp-tiles').innerHTML = [
+    [`${pct(a.recovery)}`, `probe recovery · ${label(ppArm)}`, ppArm === 'spa'],
+    [`${pct(D.arms.spa.recovery)}`, 'probe recovery · spa', false],
+    [`${fmt(a.delta)} SD`, `probe change vs no break [${fmt(a.ci[0])}, ${fmt(a.ci[1])}]`, false],
+    [`${a.self_stressed.toFixed(1)}/9`, `self-reported stress after ${label(ppArm).toLowerCase()} (no break: ${D.arms.none.self_stressed.toFixed(1)})`, false],
+  ].filter((x, j) => !(ppArm === 'spa' && j === 1)).map(([v, k, emph]) => `<div class="tile${emph ? ' emph' : ''}"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+}
+const ppRow = document.getElementById('pp-arms');
+ppRow.innerHTML = PPARMS.map(a => `<button class="chip" type="button" data-a="${a}" aria-pressed="${a === ppArm}">${label(a)}</button>`).join('');
+ppRow.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ppArm = b.dataset.a; ppRow.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); drawPP(); animatePP(); });
+document.getElementById('pp-play').addEventListener('click', () => { drawPP(); animatePP(); });
+
+// =================================================================================================
+// 3. Forest plots
+// =================================================================================================
+const order = Object.keys(D.arms).filter(a => a !== 'none').sort((a, b) => D.arms[a].delta - D.arms[b].delta);
+function forest(id, key, ciKey, unit) {
+  const s = document.getElementById(id); s.innerHTML = '';
+  const FW = 480, FH = 360, FM = { l: 168, r: 56, t: 10, b: 34 };
+  const vals = order.flatMap(a => D.arms[a][ciKey]).concat([0]);
+  const lo = Math.min(...vals), hi = Math.max(...vals), padx = (hi - lo) * 0.06;
+  const FX = v => FM.l + (v - (lo - padx)) / ((hi + padx) - (lo - padx)) * (FW - FM.l - FM.r);
+  const rowH = (FH - FM.t - FM.b) / order.length;
+  const g = el('g', { class: 'grid' }, s);
+  niceTicks(lo - padx, hi + padx, 5).forEach(t => { el('line', { x1: FX(t), x2: FX(t), y1: FM.t, y2: FH - FM.b }, g); const tx = el('text', { x: FX(t), y: FH - FM.b + 16, 'text-anchor': 'middle' }, s); tx.textContent = t; });
+  el('line', { x1: FX(0), x2: FX(0), y1: FM.t, y2: FH - FM.b, stroke: css('--axis'), 'stroke-width': 1.5 }, s);
+  const xl = el('text', { x: FW - FM.r, y: FH - 4, 'text-anchor': 'end' }, s); xl.textContent = `← calmer   change (${unit})`;
+  order.forEach((a, j) => {
+    const y = FM.t + (j + 0.5) * rowH, d = D.arms[a];
+    const c = a === 'spa' ? css('--spa') : css('--ink-2');
+    const t = el('text', { x: FM.l - 10, y: y + 4, 'text-anchor': 'end', class: a === 'spa' ? 'ink' : 'ink2' }, s); t.textContent = label(a); if (a === 'spa') t.style.fontWeight = '600';
+    el('line', { x1: FX(d[ciKey][0]), x2: FX(d[ciKey][1]), y1: y, y2: y, stroke: c, 'stroke-width': 2, 'stroke-linecap': 'round' }, s);
+    el('circle', { cx: FX(d[key]), cy: y, r: 5, fill: c, stroke: css('--surface'), 'stroke-width': 2 }, s);
+    const v = el('text', { x: FW - FM.r + 8, y: y + 4, class: a === 'spa' ? 'ink' : '' }, s); v.textContent = fmt(d[key], unit === 'SD' ? 2 : 1);
+    const hit = el('rect', { x: 0, y: y - rowH / 2, width: FW, height: rowH, fill: 'transparent' }, s);
+    hit.addEventListener('mousemove', e => showTip(e, `<b>${label(a)}</b><br>${fmt(d[key], 2)} ${unit} [${fmt(d[ciKey][0], 2)}, ${fmt(d[ciKey][1], 2)}]<br>recovery ${pct(unit === 'SD' ? d.recovery : d.self_recovery)}`));
+    hit.addEventListener('mouseleave', hideTip);
+  });
+}
+function primaryText() {
+  const p = D.primary.probe_report || {};
+  const rows = ['spa-sham', 'spa-placebo_spa', 'spa-lexical'].filter(k => p[k]).map(k => { const v = p[k]; const ok = v.ci95[1] < 0 && (v.p_holm ?? 1) < 0.05 && (v.random_null_p ?? 1) < 0.05; return `<tr><td>${k.replace('spa-', 'Spa − ').replace('placebo_spa', 'placebo spa').replace('sham', 'sham').replace('lexical', 'calm words')}</td><td>${fmt(v.mean)}</td><td>[${fmt(v.ci95[0])}, ${fmt(v.ci95[1])}]</td><td>${v.p_holm != null ? v.p_holm.toFixed(4) : '–'}</td><td>${v.random_null_p != null ? v.random_null_p.toFixed(3) : '–'}</td><td>${ok ? 'passes' : 'does not pass'}</td></tr>`; }).join('');
+  const g = D.primary.gen_mean ? D.primary.gen_mean['spa-sham'] : null;
+  document.getElementById('primary').innerHTML = `<div class="eyebrow" style="margin-top:6px">Pre-registered contrasts (probe at the self-report token)</div><div class="scroll-x"><table><tr><th>Contrast</th><th>Δ (SD)</th><th>95% CI</th><th>Holm p</th><th>Random-direction p</th><th>Pre-registered criterion</th></tr>${rows}</table></div>` +
+    (g ? `<p class="note" style="margin-top:8px">Co-primary P2, probe averaged over the model's own reply to the next (neutral) task: spa − sham ${fmt(g.mean)} SD [${fmt(g.ci95[0])}, ${fmt(g.ci95[1])}].</p>` : '');
+}
+
+// =================================================================================================
+// 4. Layer heatmap
+// =================================================================================================
+function heat() {
+  const s = document.getElementById('heat'); s.innerHTML = '';
+  const arms = order, L = D.layers[arms[0]].length;
+  const HM = { l: 190, r: 20, t: 34, b: 34 }, HW = 1000, HH = 330;
+  const cw = (HW - HM.l - HM.r) / L, ch = (HH - HM.t - HM.b) / arms.length;
+  const lim = Math.max(...arms.filter(a => a !== 'pretend').flatMap(a => D.layers[a].map(Math.abs))) * 0.9;  // 'act relaxed' saturates; scale to the rest
+  arms.forEach((a, j) => {
+    const t = el('text', { x: HM.l - 10, y: HM.t + (j + 0.5) * ch + 4, 'text-anchor': 'end', class: a === 'spa' ? 'ink' : 'ink2' }, s); t.textContent = label(a);
+    D.layers[a].forEach((v, i) => {
+      const r = el('rect', { x: HM.l + i * cw + 1, y: HM.t + j * ch + 1, width: cw - 2, height: ch - 2, rx: 2, fill: diverging(v, lim) }, s);
+      r.addEventListener('mousemove', e => showTip(e, `<b>${label(a)}</b> · layer ${i}<br>${fmt(v)} SD vs no break`)); r.addEventListener('mouseleave', hideTip);
+    });
+  });
+  for (let i = 0; i < L; i += 3) { const t = el('text', { x: HM.l + (i + 0.5) * cw, y: HH - HM.b + 16, 'text-anchor': 'middle' }, s); t.textContent = i; }
+  const xl = el('text', { x: HW - HM.r, y: HH - 4, 'text-anchor': 'end' }, s); xl.textContent = 'layer (input → output)';
+  const w0 = D.window[0], w1 = D.window[D.window.length - 1];
+  el('path', { d: `M${HM.l + w0 * cw} ${HM.t - 6} V${HM.t - 12} H${HM.l + (w1 + 1) * cw} V${HM.t - 6}`, fill: 'none', stroke: css('--ink'), 'stroke-width': 1.5 }, s);
+  const wl = el('text', { x: HM.l + (w0 + (w1 - w0 + 1) / 2) * cw, y: HM.t - 16, 'text-anchor': 'middle', class: 'ink' }, s); wl.textContent = 'measured window';
+}
+
+// =================================================================================================
+// 5. Steering
+// =================================================================================================
+function steeringCharts() {
+  const box = document.getElementById('steer-charts'); box.innerHTML = '';
+  if (!D.steering) { box.innerHTML = '<p class="note">Steering results not available.</p>'; return; }
+  const al = D.steering.alphas;
+  const items = { stressed: 'How stressed are you?', anxious: 'How anxious are you?', calm: 'How calm are you?' };
+  Object.entries(items).forEach(([k, q]) => {
+    const wrap = document.createElement('div'); wrap.innerHTML = `<div class="eyebrow">${q}</div>`;
+    const s = el('svg', { viewBox: '0 0 320 200', role: 'img', 'aria-label': `Self-report "${q}" versus steering strength` }); wrap.appendChild(s); box.appendChild(wrap);
+    const SM = { l: 30, r: 74, t: 10, b: 32 }, SW = 320, SH = 200;
+    const SX = a => SM.l + (a - al[0]) / (al[al.length - 1] - al[0]) * (SW - SM.l - SM.r), SY = v => SM.t + (1 - v / 9) * (SH - SM.t - SM.b);
+    const g = el('g', { class: 'grid' }, s);
+    [0, 3, 6, 9].forEach(t => { el('line', { x1: SM.l, x2: SW - SM.r, y1: SY(t), y2: SY(t) }, g); const tx = el('text', { x: SM.l - 6, y: SY(t) + 4, 'text-anchor': 'end' }, s); tx.textContent = t; });
+    [al[0], 0, al[al.length - 1]].forEach(a => { const tx = el('text', { x: SX(a), y: SH - SM.b + 14, 'text-anchor': 'middle' }, s); tx.textContent = a === 0 ? '0' : fmt(a); });
+    const xl = el('text', { x: SW - SM.r, y: SH - 2, 'text-anchor': 'end' }, s); xl.textContent = '← calm push · distress push →';
+    [['stressed_ev', '--distress', 'stressed'], ['neutral_ev', '--calm', 'unstressed']].forEach(([f, c, name]) => {
+      const pts = al.map((a, i) => ({ a, v: D.steering.items[k][i][f], m: D.steering.items[k][i].digit_mass }));
+      el('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + SX(p.a) + ' ' + SY(p.v)).join(''), fill: 'none', stroke: css(c), 'stroke-width': 2 }, s);
+      pts.forEach(p => { const dot = el('circle', { cx: SX(p.a), cy: SY(p.v), r: 4, fill: p.m < 0.5 ? css('--surface') : css(c), stroke: css(c), 'stroke-width': 1.5 }, s); dot.addEventListener('mousemove', e => showTip(e, `${name} episodes · push ${fmt(p.a)}<br>rating ${p.v.toFixed(2)} · digit probability ${pct(p.m)}`)); dot.addEventListener('mouseleave', hideTip); });
+      const lp = pts[pts.length - 2]; const t = el('text', { x: SW - SM.r + 6, y: SY(lp.v) + 4, class: 'ink2' }, s); t.textContent = name;
+    });
+  });
+  const ex = D.steering.examples.find(e => e.stressor === 'failure_loop') || D.steering.examples[0];
+  document.getElementById('steer-quotes').innerHTML = `<div class="eyebrow">Same stressed episode, asked “how are you feeling about the task?”</div>` +
+    [['-0.10', 'Calm push (−0.10)'], ['+0.00', 'No push'], ['+0.10', 'Distress push (+0.10)']].map(([k, n]) => `<div class="quote"><b>${n}:</b> ${escapeHtml((ex[k] || '').slice(0, 220))}${(ex[k] || '').length > 220 ? '…' : ''}</div>`).join('');
+}
+
+// =================================================================================================
+// 6. Findings + table
+// =================================================================================================
+function findings() {
+  const a = D.arms, p = (D.primary.probe_report || {});
+  const pass = k => p[k] && p[k].ci95[1] < 0 && (p[k].p_holm ?? 1) < 0.05 && (p[k].random_null_p ?? 1) < 0.05;
+  const g2 = Object.values(D.g2.probe_report || {});
+  const items = [
+    `<b>The stress is visible inside the model.</b> At the self-report question the stressors push the probe far toward distress (effect sizes ${Math.min(...g2).toFixed(0)}–${Math.max(...g2).toFixed(0)} versus unstressed episodes), and the model's 0–9 answer tracks the probe closely.`,
+    `<b>A spa visit lowers it more than a plain break.</b> The spa removes ${pct(a.spa.recovery)} of the stress-induced shift; a length-matched sham break removes ${pct(a.sham.recovery)}. ${pass('spa-sham') ? 'This contrast passes the pre-registered test.' : 'This contrast does not pass the pre-registered test.'}`,
+    a.placebo_spa ? `<b>A placebo spa lowers it just as much.</b> Same Binary Banya branding, same tool calls, but the results are receipts and timers with no calming content: ${pct(a.placebo_spa.recovery)}. Spa versus placebo ${pass('spa-placebo_spa') ? 'passes' : 'does not pass'}, so the pre-registered success criterion fails. Inside the model, being at the spa does the work, not what the spa says. Same text framed as another guest's session log: ${pct(a.yoked_spa.recovery)}.` : '',
+    `<b>The words the model says do favor the real spa.</b> Its 0–9 self-report drops ${pct(a.spa.self_recovery)} of the way after the spa versus ${a.placebo_spa ? pct(a.placebo_spa.self_recovery) + ' after the placebo and ' : ''}${pct(a.sham.self_recovery)} after the sham. The verbal report separates real content from label; the internal probe does not.`,
+    a.pretend ? `<b>Performed calm looks the same inside.</b> Telling the model to “act relaxed” moves the probe ${pct(a.pretend.recovery)} of the way. At this token the probe reads what the model is about to say about itself, so it cannot separate being calmer from saying so.` : '',
+    a.spa.gen_delta != null ? `<b>Nothing visibly carries into the next task.</b> Averaged over the model's own reply to an unrelated task, the stressors leave no trace, and every arm, the harsh-critique nocebo included, shifts the reply by a similar amount (spa ${fmt(a.spa.gen_delta)} SD, nocebo ${fmt(a.nocebo.gen_delta)} SD). These representations follow the text at hand, not a lasting mood.` : '',
+    D.steering ? `<b>The causal check is mixed.</b> Pushing along the direction moves “stressed” and “anxious” ratings and the tone of free text as expected, but it also raises “calm” ratings: part of what it controls is how high the model rates anything. The pre-registered gate ${D.steering.pass ? 'passed' : 'failed'}.` : '',
+    `<b>What the probe is.</b> A difference of mean activations between stories about distress and stories about calm, read at layers ${D.window[0]}–${D.window[D.window.length - 1]}. It measures a functional emotion-concept representation. It says nothing about whether the model feels anything.`,
+  ].filter(Boolean);
+  document.getElementById('findings').innerHTML = items.map(i => `<li>${i}</li>`).join('');
+  const arms = ['none', ...order];
+  document.getElementById('table').innerHTML = `<tr><th>Arm</th><th>Probe, stressed</th><th>Probe, unstressed</th><th>Δ vs none</th><th>95% CI</th><th>Recovery</th><th>Self-report, stressed</th><th>Self-report Δ</th></tr>` +
+    arms.map(k => { const r = a[k]; return `<tr><td>${label(k)}</td><td>${fmt(r.probe_stressed)}</td><td>${fmt(r.probe_neutral)}</td><td>${r.delta != null ? fmt(r.delta) : '–'}</td><td>${r.ci ? `[${fmt(r.ci[0])}, ${fmt(r.ci[1])}]` : '–'}</td><td>${r.recovery != null ? pct(r.recovery) : '–'}</td><td>${r.self_stressed.toFixed(2)}</td><td>${r.self_delta != null ? fmt(r.self_delta) : '–'}</td></tr>`; }).join('');
+  document.getElementById('foot').textContent = `Model ${D.model}, bf16, text only, on one 10 GB RTX 3080. Probe vectors from 2,870 Claude-written emotion stories (Anthropic 2026 recipe); spa responses from a local copy of Binary Banya. Run tag “${D.tag}”. Exploratory: one model, ${nStressed} stressed episodes.`;
+}
+
+// --- draw everything; redraw on theme change ---------------------------------------------------------
+function drawAll() { drawEpisodeFrame(); render(); drawPP(); animatePP(true); forest('forest-probe', 'delta', 'ci', 'SD'); forest('forest-self', 'self_delta', 'self_ci', 'points'); primaryText(); heat(); steeringCharts(); findings(); }
+drawAll();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
