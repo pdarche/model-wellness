@@ -28,3 +28,7 @@ banyabench/runs/*
 !banyabench/runs/.gitkeep
 banyabench/runs_quick/
 banyabench/*.log
+
+# BanyaProbes interp env + cached activations (large)
+.venv-interp/
+banyabench/internals/cache/
