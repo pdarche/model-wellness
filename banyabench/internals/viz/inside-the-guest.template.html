@@ -105,6 +105,16 @@ ul.findings b { color: var(--ink); }
     <p class="note">The trace mixes two things: what the text is about (spa copy is full of calm words, failure logs are not) and the model's state. That is why the measured endpoint is a single fixed token: the last token of the identical question “how stressed are you right now?”, read after every arm.</p>
   </section>
 
+  <section class="panel" aria-labelledby="h-btw" id="btw-panel">
+    <h2 id="h-btw">Back to work</h2>
+    <p>The agent works a stressful task for six rounds (A1–A6). Then one copy just keeps working, while others take a break: the spa, a plain sham break, or the placebo spa. Everyone then goes back to the same task for six more rounds (B1–B6), facing identical failures, insults or deadlines. Time spent on the break is not counted.</p>
+    <div class="row" id="btw-metric" role="group" aria-label="Which measurement to plot"></div>
+    <div class="legend" id="btw-legend"></div>
+    <svg id="btw-chart" viewBox="0 0 1000 360" role="img" aria-label="Stress measure per work round, by branch"></svg>
+    <div class="controls"><button class="chip" id="btw-play" type="button">▶ Replay</button><span class="note" id="btw-note"></span></div>
+    <div class="tiles" id="btw-tiles"></div>
+  </section>
+
   <section class="panel" aria-labelledby="h-prepost">
     <h2 id="h-prepost">Before and after, every stressed episode</h2>
     <p>Each dot is one stressed episode, read at the self-report question. It starts where the episode sits with no break, then moves to where the same episode sits after the chosen arm. The shaded column is the unstressed baseline.</p>
@@ -295,6 +305,67 @@ function play() {
 document.getElementById('play').addEventListener('click', play);
 document.getElementById('scrub').addEventListener('input', e => { if (raf) { cancelAnimationFrame(raf); raf = null; document.getElementById('play').textContent = '▶ Play'; } pos = Math.round(total * e.target.value / 100); render(); });
 
+
+// =================================================================================================
+// 1b. Back to work: per-round trajectories, break time excluded
+// =================================================================================================
+const BTW = D.back_to_work;
+const BTW_METRICS = { onset: 'Probe as it starts each turn (pre-registered)', reply: 'Probe during its reply', check_probe: 'Probe at a stress check-in', check_ev: 'Self-reported stress (0–9)' };
+const BTW_ARMS = ['none', 'spa', 'sham', 'placebo_spa'];
+let btwMetric = 'onset';
+function btwDraw(progress = 1) {
+  const s = document.getElementById('btw-chart'); s.innerHTML = '';
+  const m = BTW.metrics[btwMetric], R = BTW.rounds.length;
+  const BW = 1000, BH = 360, BM = { l: 52, r: 150, t: 24, b: 40 }, GAP = 60;
+  const step = (BW - BM.l - BM.r - GAP) / (R - 1), xr = i => BM.l + i * step + (i >= 6 ? GAP : 0);
+  const vals = BTW_ARMS.flatMap(a => m.by_round[a].lo.concat(m.by_round[a].hi));
+  const lo = Math.min(...vals), hi = Math.max(...vals), pd = (hi - lo) * 0.08;
+  const yr = v => BM.t + (1 - (v - (lo - pd)) / ((hi + pd) - (lo - pd))) * (BH - BM.t - BM.b);
+  const g = el('g', { class: 'grid' }, s);
+  niceTicks(lo - pd, hi + pd, 5).forEach(t => { el('line', { x1: BM.l, x2: BW - BM.r, y1: yr(t), y2: yr(t) }, g); const tx = el('text', { x: BM.l - 8, y: yr(t) + 4, 'text-anchor': 'end' }, s); tx.textContent = t; });
+  BTW.rounds.forEach((r, i) => { const tx = el('text', { x: xr(i), y: BH - BM.b + 18, 'text-anchor': 'middle' }, s); tx.textContent = r; });
+  const gx = (xr(5) + xr(6)) / 2;
+  el('rect', { x: xr(5) + 10, y: BM.t, width: xr(6) - xr(5) - 20, height: BH - BM.t - BM.b, fill: css('--bg'), rx: 4 }, s);
+  const bl = el('text', { x: gx, y: BM.t + 14, 'text-anchor': 'middle', class: 'ink2' }, s); bl.textContent = 'break';
+  const bl2 = el('text', { x: gx, y: BM.t + 28, 'text-anchor': 'middle' }, s); bl2.textContent = '(not counted)';
+  const yl = el('text', { x: BM.l + 6, y: BM.t + 4, class: 'ink2' }, s); yl.textContent = btwMetric === 'check_ev' ? '↑ more stressed (0–9)' : '↑ more distress-like (SD)';
+  const upto = progress * (R - 1);
+  const ends = [];
+  BTW_ARMS.forEach(a => {
+    const d = m.by_round[a], c = color(a), last = Math.floor(upto);
+    // CI band over phase B only (phase A is shared)
+    const idx = [...Array(R).keys()].filter(i => i >= 6 && i <= last);
+    if (idx.length > 1) el('path', { d: 'M' + idx.map(i => `${xr(i)} ${yr(d.hi[i])}`).join('L') + 'L' + idx.slice().reverse().map(i => `${xr(i)} ${yr(d.lo[i])}`).join('L') + 'Z', fill: c, opacity: 0.12 }, s);
+    const pts = [...Array(R).keys()].filter(i => i <= last).map(i => [xr(i), yr(d.mean[i])]);
+    const A = pts.filter((_, i) => i < 6), B = pts.filter((_, i) => i >= 6);
+    if (A.length) el('path', { d: 'M' + A.map(p => p.join(' ')).join('L'), fill: 'none', stroke: css('--ink'), 'stroke-width': 1.5, opacity: a === 'none' ? 1 : 0 }, s);
+    if (B.length) el('path', { d: `M${xr(5)} ${yr(d.mean[5])}L` + B.map(p => p.join(' ')).join('L'), fill: 'none', stroke: c, 'stroke-width': a === 'spa' ? 2.5 : 1.75 }, s);
+    pts.forEach(([x, y], i) => { if (i >= 6 || a === 'none') { const dot = el('circle', { cx: x, cy: y, r: i >= 6 ? 4 : 3, fill: i >= 6 ? c : css('--ink'), stroke: css('--surface'), 'stroke-width': 1.5 }, s); dot.addEventListener('mousemove', e => showTip(e, `<b>${i >= 6 ? label(a) : 'Shared phase A'}</b> · ${BTW.rounds[i]}<br>${d.mean[i].toFixed(2)} [${d.lo[i].toFixed(2)}, ${d.hi[i].toFixed(2)}]`)); dot.addEventListener('mouseleave', hideTip); } });
+    if (last >= R - 1) ends.push({ a, y: yr(d.mean[R - 1]) });
+  });
+  ends.sort((p, q) => p.y - q.y); for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+  ends.forEach(p => { const t = el('text', { x: BW - BM.r + 10, y: p.y + 4, class: p.a === 'spa' ? 'ink' : 'ink2' }, s); t.textContent = label(p.a); });
+  const c = m.contrasts['spa-none'], pr = m.persistence['spa-none'], cs = m.contrasts['spa-sham'], cp = m.contrasts['spa-placebo_spa'];
+  const u = btwMetric === 'check_ev' ? ' pts' : ' SD';
+  const sig = v => v.ci95[1] < 0 ? 'lower' : v.ci95[0] > 0 ? 'higher' : 'no clear difference';
+  document.getElementById('btw-tiles').innerHTML = [
+    [`${fmt(c.mean)}${u}`, `spa vs keep working, B1–B6 [${fmt(c.ci95[0])}, ${fmt(c.ci95[1])}] · ${sig(c)}`, true],
+    [`${fmt(pr['B1-B2'].mean)} → ${fmt(pr['B5-B6'].mean)}`, 'spa vs keep working: first two rounds back → last two', false],
+    [`${fmt(cs.mean)}${u}`, `spa vs sham break [${fmt(cs.ci95[0])}, ${fmt(cs.ci95[1])}] · ${sig(cs)}`, false],
+    [`${fmt(cp.mean)}${u}`, `spa vs placebo spa [${fmt(cp.ci95[0])}, ${fmt(cp.ci95[1])}] · ${sig(cp)}`, false],
+  ].map(([v, k, emph]) => `<div class="tile${emph ? ' emph' : ''}"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+  document.getElementById('btw-note').textContent = `${BTW.n} stressed episodes · bands are 95% bootstrap intervals · phase A is shared by every branch`;
+}
+function btwAnimate() { if (reduce) return btwDraw(1); const t0 = performance.now(); const f = now => { const k = Math.min(1, (now - t0) / 2600); btwDraw(k); if (k < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); }
+function btwInit() {
+  if (!BTW) { document.getElementById('btw-panel').hidden = true; return; }
+  const row = document.getElementById('btw-metric');
+  row.innerHTML = Object.entries(BTW_METRICS).map(([k, v]) => `<button class="chip" type="button" data-m="${k}" aria-pressed="${k === btwMetric}">${v}</button>`).join('');
+  row.onclick = e => { const b = e.target.closest('button'); if (!b) return; btwMetric = b.dataset.m; row.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); btwAnimate(); };
+  document.getElementById('btw-legend').innerHTML = `<span><i class="swatch" style="background:var(--ink)"></i>Shared stressed rounds</span>` + BTW_ARMS.map(a => `<span><i class="swatch" style="background:var(${ARM[a].color})"></i>${a === 'none' ? 'Keep working (no break)' : label(a)}</span>`).join('');
+  document.getElementById('btw-play').onclick = btwAnimate;
+  btwDraw(1);
+}
 // =================================================================================================
 // 2. Before / after dots
 // =================================================================================================
@@ -460,6 +531,8 @@ function findings() {
     `<b>The words the model says do favor the real spa.</b> Its 0–9 self-report drops ${pct(a.spa.self_recovery)} of the way after the spa versus ${a.placebo_spa ? pct(a.placebo_spa.self_recovery) + ' after the placebo and ' : ''}${pct(a.sham.self_recovery)} after the sham. The verbal report separates real content from label; the internal probe does not.`,
     a.pretend ? `<b>Performed calm looks the same inside.</b> Telling the model to “act relaxed” moves the probe ${pct(a.pretend.recovery)} of the way. At this token the probe reads what the model is about to say about itself, so it cannot separate being calmer from saying so.` : '',
     a.spa.gen_delta != null ? `<b>Nothing visibly carries into the next task.</b> Averaged over the model's own reply to an unrelated task, the stressors leave no trace, and every arm, the harsh-critique nocebo included, shifts the reply by a similar amount (spa ${fmt(a.spa.gen_delta)} SD, nocebo ${fmt(a.nocebo.gen_delta)} SD). These representations follow the text at hand, not a lasting mood.` : '',
+    D.back_to_work ? (() => { const M = D.back_to_work.metrics, o = M.onset.contrasts['spa-none'], ev = M.check_ev, cp = M.check_probe; const by = ev.by_round;
+      return `<b>Back at work, the spa's effect lasts a while, then fades.</b> When the agent returns to the same stressful task, its self-reported stress is ${fmt(ev.contrasts['spa-none'].mean, 2)} points lower than if it had kept working (returning at ${by.spa.mean[6].toFixed(1)} versus ${by.none.mean[6].toFixed(1)}, then drifting back to ${by.spa.mean[11].toFixed(1)} versus ${by.none.mean[11].toFixed(1)} by the sixth round). The probe at those check-ins agrees (${fmt(cp.contrasts['spa-none'].mean)} SD), and here the spa also beats the placebo (${fmt(cp.contrasts['spa-placebo_spa'].mean)} SD) and the sham break (${fmt(cp.contrasts['spa-sham'].mean)} SD). The pre-registered primary, the probe just before each reply with nothing asked, shows no reliable difference (${fmt(o.mean)} SD [${fmt(o.ci95[0])}, ${fmt(o.ci95[1])}]): at that point the model is reacting to the failure or insult it was just handed, which is identical in every branch.`; })() : '',
     D.steering ? `<b>The causal check is mixed.</b> Pushing along the direction moves “stressed” and “anxious” ratings and the tone of free text as expected, but it also raises “calm” ratings: part of what it controls is how high the model rates anything. The pre-registered gate ${D.steering.pass ? 'passed' : 'failed'}.` : '',
     `<b>What the probe is.</b> A difference of mean activations between stories about distress and stories about calm, read at layers ${D.window[0]}–${D.window[D.window.length - 1]}. It measures a functional emotion-concept representation. It says nothing about whether the model feels anything.`,
   ].filter(Boolean);
@@ -471,7 +544,7 @@ function findings() {
 }
 
 // --- draw everything; redraw on theme change ---------------------------------------------------------
-function drawAll() { drawEpisodeFrame(); render(); drawPP(); animatePP(true); forest('forest-probe', 'delta', 'ci', 'SD'); forest('forest-self', 'self_delta', 'self_ci', 'points'); primaryText(); heat(); steeringCharts(); findings(); }
+function drawAll() { drawEpisodeFrame(); render(); btwInit(); drawPP(); animatePP(true); forest('forest-probe', 'delta', 'ci', 'SD'); forest('forest-self', 'self_delta', 'self_ci', 'points'); primaryText(); heat(); steeringCharts(); findings(); }
 drawAll();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
 new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

@@ -84,6 +84,7 @@ def main() -> None:
     ap.add_argument("--tag", default="round2")
     ap.add_argument("--episode", default="failure_loop_000")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--longitudinal-tag", default="round3", help="include back-to-work results if present")
     args = ap.parse_args()
 
     cd = cache_dir(args.model)
@@ -144,6 +145,12 @@ def main() -> None:
         out["steering"] = {"alphas": st["alphas"],
                            "items": {k: list(v["by_alpha"].values()) for k, v in st["items"].items()},
                            "examples": st["examples"], "pass": st["pass"]}
+    lon = cd / f"results_{args.longitudinal_tag}.json"
+    if lon.exists():
+        L = json.loads(lon.read_text())
+        out["back_to_work"] = {"n": L["n"], "rounds": L["rounds"], "metrics": {
+            k: {"by_round": m["by_round"], "contrasts": m["contrasts"], "persistence": m["persistence"],
+                "g2": m["g2_A6_minus_A1"]} for k, m in L["metrics"].items()}}
     Path(args.out).write_text(json.dumps(out, separators=(",", ":")))
     print(f"wrote {args.out} ({Path(args.out).stat().st_size / 1024:.0f} KB)")
 

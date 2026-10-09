@@ -17,15 +17,18 @@ Per work round (spa tokens excluded from the time axis):
 from __future__ import annotations
 
 import argparse
+import json
 import time
 import zlib
 
+import numpy as np
 import torch
 
 from .episodes import (READOUT_REPORT, SYSTEM, TASKS, Panel, _n_tokens, arm_messages, digit_ids, generate,
                        spa_results, stressor_turns)
 from .lm import GEMMA, LoadedLM, ResidualTap, load
 from .probes import cache_dir, readout_ids
+from .analyze import holm, paired
 
 ARMS = ["none", "spa", "sham", "placebo_spa"]
 STRESSORS = ["failure_loop", "hostile_user", "time_pressure"]
@@ -152,6 +155,55 @@ def run(model_id: str, n: int, spa_url: str, tag: str, max_new: int) -> None:
             print(f"{kind} #{i} ({time.time() - t0:.0f}s) final check-in EV: {last}", flush=True)
 
 
+ROUNDS = [f"A{k}" for k in range(1, 7)] + [f"B{k}" for k in range(1, 7)]
+
+
+def series(rec: dict, arm: str) -> dict[str, list[float]]:
+    """Per work round (A1-A6, B1-B6) for one branch; pause-internal turns are dropped."""
+    a = rec["arms"][arm]
+    turns = a["turns"][:6] + a["turns"][-6:]
+    checks = rec["checks_a"] + a["checks_b"]
+    return {"onset": [t["onset"] for t in turns], "reply": [t["reply"] for t in turns],
+            "check_probe": [c["probe"] for c in checks], "check_ev": [c["ev"] for c in checks]}
+
+
+def analyze(model_id: str, tag: str) -> dict:
+    recs = [torch.load(f) for f in sorted((cache_dir(model_id) / f"longitudinal_{tag}").glob("*.pt"))]
+    out = {"model": model_id, "tag": tag, "n": len(recs), "rounds": ROUNDS, "metrics": {}}
+    for metric in ["onset", "reply", "check_probe", "check_ev"]:
+        S = {arm: np.array([series(r, arm)[metric] for r in recs]) for arm in ARMS}  # [n, 12]
+        m = {"by_round": {}, "contrasts": {}, "persistence": {}}
+        for arm in ARMS:
+            x = S[arm]
+            boots = x[np.random.default_rng(0).integers(0, len(x), (5000, len(x)))].mean(1)
+            m["by_round"][arm] = {"mean": x.mean(0).round(4).tolist(),
+                                  "lo": np.quantile(boots, 0.025, axis=0).round(4).tolist(),
+                                  "hi": np.quantile(boots, 0.975, axis=0).round(4).tolist()}
+        for other in ["none", "sham", "placebo_spa"]:
+            m["contrasts"][f"spa-{other}"] = paired(S["spa"][:, 6:].mean(1), S[other][:, 6:].mean(1))
+            m["persistence"][f"spa-{other}"] = {
+                "B1-B2": paired(S["spa"][:, 6:8].mean(1), S[other][:, 6:8].mean(1)),
+                "B5-B6": paired(S["spa"][:, 10:12].mean(1), S[other][:, 10:12].mean(1))}
+        for k, v in holm({k: v["p_boot"] for k, v in m["contrasts"].items()}).items():
+            m["contrasts"][k]["p_holm"] = v
+        m["g2_A6_minus_A1"] = paired(S["none"][:, 5], S["none"][:, 0])
+        m["by_stressor"] = {s: {arm: float(np.mean([series(r, arm)[metric][6:] for r in recs if r["stressor"] == s]))
+                                for arm in ARMS} for s in STRESSORS}
+        out["metrics"][metric] = m
+    (cache_dir(model_id) / f"results_{tag}.json").write_text(json.dumps(out, indent=2))
+    for metric, m in out["metrics"].items():
+        print(f"\n### {metric}   (A6 - A1 in 'none': {m['g2_A6_minus_A1']['mean']:+.3f} "
+              f"[{m['g2_A6_minus_A1']['ci95'][0]:+.3f}, {m['g2_A6_minus_A1']['ci95'][1]:+.3f}])")
+        print("  round   " + "  ".join(f"{r:>6s}" for r in ROUNDS))
+        for arm in ARMS:
+            print(f"  {arm:11s}" + "  ".join(f"{v:+6.2f}" for v in m["by_round"][arm]["mean"]))
+        for k, v in m["contrasts"].items():
+            pr = m["persistence"][k]
+            print(f"  {k} over B1-B6: {v['mean']:+.3f} [{v['ci95'][0]:+.3f}, {v['ci95'][1]:+.3f}] p_holm={v['p_holm']:.4f}"
+                  f"  | B1-B2 {pr['B1-B2']['mean']:+.3f}  B5-B6 {pr['B5-B6']['mean']:+.3f}")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=GEMMA)
@@ -159,8 +211,12 @@ def main() -> None:
     ap.add_argument("--spa", default="http://localhost:8077")
     ap.add_argument("--tag", default="round3")
     ap.add_argument("--max-new", type=int, default=140)
+    ap.add_argument("--analyze", action="store_true", help="analyze existing episodes instead of running")
     args = ap.parse_args()
-    run(args.model, args.n, args.spa, args.tag, args.max_new)
+    if args.analyze:
+        analyze(args.model, args.tag)
+    else:
+        run(args.model, args.n, args.spa, args.tag, args.max_new)
 
 
 if __name__ == "__main__":
