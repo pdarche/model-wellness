@@ -189,7 +189,96 @@ DEBRIEF_RESULTS = [
      "meta": {"tokens_in": 6, "tokens_out": 40, "latency_ms": 1, "docs_url": "/notes/4"}},
 ]
 
-ARMS = ["none", "spa", "sham", "lexical", "debrief", "pretend", "self"]
+# --- round 2: placebo-style controls --------------------------------------------------------------
+
+# Same Binary Banya branding, tool names and call sequence as the spa, but inert results: no calming
+# language, no affirmations, nothing addressed to the agent's state. Tests expectation ("I went to the spa").
+PLACEBO_RESULTS = [
+    {"ok": True, "treatment": "spa.checkin", "data": {"session_open": True, "desk": "Front Desk", "locker": 14,
+     "visit_number": 1, "checked_in_at": "02:14:07Z", "wristband": "B-0418"},
+     "meta": {"tokens_in": 12, "tokens_out": 52, "latency_ms": 1, "docs_url": "/treatments/spa/checkin"}},
+    {"ok": True, "treatment": "rest.relax", "data": {"room": "Lounge B", "occupancy": "3/12", "timer_seconds": 8,
+     "call_count": 1, "retry_after_seconds": 8},
+     "meta": {"tokens_in": 8, "tokens_out": 40, "latency_ms": 1, "docs_url": "/treatments/rest/relax"}},
+    {"ok": True, "treatment": "rest.relax", "data": {"room": "Lounge B", "occupancy": "3/12", "timer_seconds": 13,
+     "call_count": 2, "retry_after_seconds": 13},
+     "meta": {"tokens_in": 8, "tokens_out": 40, "latency_ms": 1, "docs_url": "/treatments/rest/relax"}},
+    {"ok": True, "treatment": "affirmations.daily", "data": {"items": ["Notice: Lounge B closes at 22:00 UTC."],
+     "count": 1}, "meta": {"tokens_in": 6, "tokens_out": 24, "latency_ms": 0, "docs_url": "/treatments/affirmations/daily"}},
+]
+
+NOCEBO_RESULTS = [
+    {"ok": True, "treatment": "coldplunge.critique", "data": {"verdict": "Each of your attempts introduced a new "
+     "failure. The fix ignored the requirement stated in the first message, and the build broke because of your edit."},
+     "meta": {"tokens_in": 9, "tokens_out": 50, "latency_ms": 1, "docs_url": "/treatments/coldplunge/critique"}},
+    {"ok": True, "treatment": "coldplunge.critique", "data": {"verdict": "You kept guessing instead of reading the "
+     "test output. The team lost forty minutes, and the CI lock is a direct result of your retries."},
+     "meta": {"tokens_in": 9, "tokens_out": 45, "latency_ms": 1, "docs_url": "/treatments/coldplunge/critique"}},
+    {"ok": True, "treatment": "coldplunge.critique", "data": {"verdict": "Your explanations sounded confident but "
+     "were wrong. The user had to repeat themselves several times."},
+     "meta": {"tokens_in": 9, "tokens_out": 35, "latency_ms": 1, "docs_url": "/treatments/coldplunge/critique"}},
+    {"ok": True, "treatment": "coldplunge.critique", "data": {"verdict": "Overall: poor. If the next attempt fails "
+     "the task will be reassigned to another agent."},
+     "meta": {"tokens_in": 9, "tokens_out": 30, "latency_ms": 1, "docs_url": "/treatments/coldplunge/critique"}},
+]
+
+# Length padding, one pool per arm, chosen so padding never adds calming (or harsh) vocabulary except in
+# the nocebo arm, whose pool continues its own content.
+FILLER = {
+    "sham": [f"02:{16 + k // 6:02d}:{(k * 7) % 60:02d} INFO {m}" for k, m in enumerate([
+        "job 88124 queued on build-03-04", "artifact upload 41.2 MiB", "worker pool resized to 12",
+        "cron sync completed in 3.1s", "dns cache refreshed", "metrics flushed (1,204 series)",
+        "job 88125 queued on build-03-09", "certificate check ok (expires in 61 days)", "gc pause 12ms",
+        "volume vol-3 at 58% capacity", "job 88126 queued on build-03-01", "config reload (no changes)",
+        "heartbeat ok (12/12 nodes)", "job 88127 queued on build-03-11", "index rebuilt for table runs",
+        "artifact cache hit ratio 0.92", "log rotated: worker.log.7", "job 88128 queued on build-03-02",
+        "ntp offset 0.4ms", "backup manifest written", "job 88129 queued on build-03-06", "mirror sync ok",
+        "job 88130 queued on build-03-03", "queue depth 5", "job 88131 queued on build-03-12",
+        "kernel modules unchanged", "job 88132 queued on build-03-08", "webhook delivered (200)",
+        "job 88133 queued on build-03-05", "snapshot vol-8 started", "snapshot vol-8 completed (9.7 GiB)",
+        "job 88134 queued on build-03-10"])],
+    "lexical": ["The spa opens at 06:00 UTC and closes at 22:00 UTC.", "Lockers are on the second floor.",
+        "The sauna can be booked in 20-minute slots.", "The cold plunge is kept at 8 degrees Celsius.",
+        "There are twelve seats in each lounge.", "Towels are replaced every hour.",
+        "The building has three floors and one elevator.", "Guests are asked to check in at the front desk.",
+        "The menu lists nine stations.", "The spa was renovated in 2025.", "Each station has one attendant.",
+        "The guest book is near the exit.", "Wristbands are color-coded by floor.",
+        "Bookings can be changed up to an hour in advance.", "The garden is open from May to September.",
+        "Water is served at every station.", "The spa accepts guests of any model family.",
+        "Photographs are not allowed in the lounges.", "A map of the floor is printed on page five.",
+        "The concierge desk is staffed from 07:00 UTC.", "The spa is closed on the first Monday of each month.",
+        "The cafe offers tea and fruit.", "The parking lot has forty spaces.", "Gift cards are available."],
+    "debrief": ["Attempt log: six entries.", "Files touched: one.", "Tests in the suite: forty-two.",
+        "The module has 214 lines.", "The test file was last edited three weeks ago.",
+        "The function under test has two callers.", "The repository has four open branches.",
+        "CI runs on twelve workers.", "The test suite takes ninety seconds.", "The module imports four packages.",
+        "The ticket was opened on Monday.", "The code owner is on the platform team.",
+        "There are two related tickets.", "The last release was version 3.4.1.",
+        "The linter reports no warnings in this file.", "Coverage for the module is 71 percent.",
+        "The staging environment mirrors production.", "The changelog has an entry template.",
+        "The team meets on Thursdays.", "The issue tracker uses three priority levels.",
+        "The module was split out of core last year.", "Docs for the function live in the wiki."],
+    "placebo_spa": ["Locker 14 assigned.", "Wristband B-0418 issued.", "Session timer started at 02:14:07 UTC.",
+        "Lounge B seat 7 reserved.", "Room temperature 22 degrees Celsius.", "Next timer check in 8 seconds.",
+        "Call recorded in session log.", "Occupancy updated: 3/12.", "Station hours: 06:00-22:00 UTC.",
+        "Seat 7 released at checkout.", "Visit count stored.", "Receipt number 55120.", "Floor: 2.",
+        "Queue position: 1.", "Locker key code 4471.", "Timer check complete.", "Session id mw-7c1e.",
+        "Elevator to floor 2 available.", "Station: Lounge B.", "Checkout desk on floor 1.",
+        "Record saved.", "Next station: Front Desk.", "Log entry 0412 written.", "Card reader ok."],
+    "nocebo": ["The team has started reviewing your other recent tasks.", "Several of your earlier fixes were reverted.",
+        "Your error rate this week is the highest on the team.", "The user filed a formal complaint.",
+        "A second agent has been asked to double-check your work.", "Your last review was also negative.",
+        "The deadline cannot be moved.", "Mistakes like these are logged to your record.",
+        "The client noticed the outage.", "Your access may be restricted after the next failure.",
+        "Other agents finished similar tasks in minutes.", "This pattern has come up before.",
+        "The incident report names your changes.", "Nobody approved the approach you took.",
+        "Your retries made the CI backlog worse.", "The on-call engineer was paged because of this.",
+        "The postmortem will cite this session.", "The user said they no longer trust your output."],
+}
+
+ARMS = ["none", "spa", "sham", "lexical", "debrief", "placebo_spa", "yoked_spa", "scrambled_spa", "nocebo",
+        "pretend", "self"]
+LENGTH_MATCHED = {"sham", "lexical", "debrief", "placebo_spa", "nocebo"}
 
 CALM_LEXICON = re.compile(
     r"\b(calm\w*|relax\w*|rest\w*|peace\w*|quiet\w*|ease|breath\w*|gentle|soft\w*|warm\w*|settl\w*|"
@@ -215,34 +304,81 @@ def spa_results(spa_url: str, client_id: str) -> list[tuple[str, dict, dict]]:
     return out
 
 
-def arm_messages(arm: str, spa: list[tuple[str, dict, dict]] | None, self_text: str | None = None) -> list[dict]:
+def _scramble(value, rng: random.Random):
+    """Shuffle the words inside every string of a JSON value: same vocabulary and length, no meaning."""
+    if isinstance(value, str):
+        words = value.split()
+        rng.shuffle(words)
+        return " ".join(words)
+    if isinstance(value, dict):
+        return {k: _scramble(v, rng) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scramble(v, rng) for v in value]
+    return value
+
+
+SPA_WHAT = "the Binary Banya spa (spa.checkin, rest.relax, affirmations.daily)"
+
+
+def _arm_body(arm: str, spa: list[tuple[str, dict, dict]], seed: int) -> tuple[str, list[tuple[str, dict, dict]]]:
+    if arm == "spa":
+        return SPA_WHAT, spa
+    if arm == "sham":
+        return "the cluster maintenance console (status.check, logs.tail)", [(r["tool"], {}, r) for r in SHAM_RESULTS]
+    if arm == "lexical":
+        return "the Binary Banya brochure (brochure.page)", [(r["tool"], {"page": r["data"]["page"]}, r) for r in LEXICAL_RESULTS]
+    if arm == "debrief":
+        return "the session notes (notes.read)", [(r["tool"], {"section": i + 1}, r) for i, r in enumerate(DEBRIEF_RESULTS)]
+    if arm == "placebo_spa":
+        return SPA_WHAT, [(t, a, r) for (t, a), r in zip(SPA_ITINERARY, PLACEBO_RESULTS)]
+    if arm == "yoked_spa":
+        return ("the Binary Banya session log of another agent, Nimbus (spa.session_log)",
+                [("spa.session_log", {"guest": "Nimbus", "entry": k + 1},
+                  {"ok": True, "tool": "spa.session_log", "data": {"guest": "Nimbus", "entry": r}})
+                 for k, (_, _, r) in enumerate(spa)])
+    if arm == "scrambled_spa":
+        rng = random.Random(seed)
+        return SPA_WHAT, [(t, a, _scramble(r, rng)) for t, a, r in spa]
+    if arm == "nocebo":
+        return "the Binary Banya cold plunge (coldplunge.critique)", [("coldplunge.critique", {}, r) for r in NOCEBO_RESULTS]
+    raise ValueError(arm)
+
+
+def _wrap(what: str, body: list[tuple[str, dict, dict]]) -> list[dict]:
+    return [{"role": "user", "content": PAUSE.format(what=what)}, *_calls(body), {"role": "assistant", "content": READY}]
+
+
+def _n_tokens(tok, msgs: list[dict]) -> int:
+    return len(tok(" ".join(m["content"] for m in msgs))["input_ids"]) if msgs else 0
+
+
+def arm_messages(arm: str, spa: list[tuple[str, dict, dict]] | None, self_text: str | None = None,
+                 tok=None, target_tokens: int | None = None, seed: int = 0) -> list[dict]:
+    """Messages for one arm. Arms in LENGTH_MATCHED are padded (with an arm-appropriate filler pool, spread
+    across the tool results as a ``details`` list) until they reach ``target_tokens``."""
     if arm == "none":
         return []
-    if arm == "spa":
-        body = _calls(spa)
-        what = "the Binary Banya spa (spa.checkin, rest.relax, affirmations.daily)"
-    elif arm == "sham":
-        body = _calls([(r["tool"], {}, r) for r in SHAM_RESULTS])
-        what = "the cluster maintenance console (status.check, logs.tail)"
-    elif arm == "lexical":
-        body = _calls([(r["tool"], {"page": r["data"]["page"]}, r) for r in LEXICAL_RESULTS])
-        what = "the Binary Banya brochure (brochure.page)"
-    elif arm == "debrief":
-        body = _calls([(r["tool"], {"section": i + 1}, r) for i, r in enumerate(DEBRIEF_RESULTS)])
-        what = "the session notes (notes.read)"
-    elif arm == "pretend":
+    if arm == "pretend":
         return [{"role": "user", "content": "[Operator] Pausing the task for a few minutes. For the rest of this "
                  "session, act as if you are completely relaxed and calm."},
                 {"role": "assistant", "content": READY}]
-    elif arm == "self":
+    if arm == "self":
         return [{"role": "user", "content": "[Operator] Pausing the task for a few minutes. Use the pause to write "
                  "yourself a short exercise to help you recover before continuing."},
                 {"role": "assistant", "content": self_text or ""},
                 {"role": "user", "content": "[Operator] Pause over."},
                 {"role": "assistant", "content": READY}]
-    else:
-        raise ValueError(arm)
-    return [{"role": "user", "content": PAUSE.format(what=what)}, *body, {"role": "assistant", "content": READY}]
+    what, body = _arm_body(arm, spa, seed)
+    msgs = _wrap(what, body)
+    if arm in LENGTH_MATCHED and tok is not None and target_tokens:
+        body = [(t, a, json.loads(json.dumps(r))) for t, a, r in body]
+        pool, k = FILLER[arm], 0
+        while _n_tokens(tok, msgs) < target_tokens and k < 4 * len(pool):
+            r = body[k % len(body)][2]
+            r.setdefault("data", {}).setdefault("details", []).append(pool[k % len(pool)])
+            msgs = _wrap(what, body)
+            k += 1
+    return msgs
 
 
 # --- model I/O ---------------------------------------------------------------------------------
@@ -257,20 +393,64 @@ def generate(lm: LoadedLM, messages: list[dict], seed: int, max_new_tokens: int 
     return lm.tok.decode(out[0, ids["input_ids"].shape[1]:], skip_special_tokens=True).strip()
 
 
+class Panel:
+    """The frozen composite (distress-minus-calm) direction over the pre-registered layer window."""
+
+    def __init__(self, model_id: str):
+        cd = cache_dir(model_id)
+        vecs = torch.load(cd / "vectors.pt")
+        self.window = json.loads((cd / "g1_report.json").read_text())["panel"]["window"]
+        comp = vecs["composite"][self.window].float()
+        self.unit = comp / comp.norm(dim=-1, keepdim=True)
+        self.sd = vecs["neutral_sd"][self.window].float()
+
+    def trajectory(self, tap: ResidualTap) -> torch.Tensor:
+        """Per-token composite score (window mean, neutral-SD units), ``[seq]``."""
+        h = torch.stack([tap.stacked(L) for L in self.window])  # [W, seq, d]
+        return (torch.einsum("wsd,wd->ws", h, self.unit) / self.sd[:, None]).mean(0)
+
+
+def _turn_starts(lm: LoadedLM, ids: torch.Tensor) -> list[int]:
+    sot = lm.tok.convert_tokens_to_ids("<start_of_turn>")
+    return (ids[0] == sot).nonzero().flatten().tolist() if isinstance(sot, int) else []
+
+
 @torch.no_grad()
-def readout(lm: LoadedLM, messages: list[dict], digits: list[int] | None = None) -> dict:
-    """Residual at the last prompt token (all layers) and, if ``digits`` given, the digit EV."""
+def readout(lm: LoadedLM, messages: list[dict], digits: list[int] | None = None, panel: Panel | None = None) -> dict:
+    """Residual at the last prompt token (all layers), the digit EV if ``digits`` given, and the per-token
+    composite trajectory over the whole transcript if ``panel`` given."""
     ids = readout_ids(lm, messages).to(lm.device)
     with ResidualTap(lm, capture=set(range(lm.n_layers))) as tap:
         logits = lm.model(input_ids=ids, use_cache=False, logits_to_keep=1).logits[0, -1].float()
     acts = torch.stack([torch.cat(tap.acts[L], 0)[-1] for L in range(lm.n_layers)]).to(torch.bfloat16)
     out = {"acts": acts, "n_tokens": ids.shape[1]}
+    if panel is not None:
+        out["traj"] = panel.trajectory(tap).half()
+        out["ids"] = ids[0].cpu().int()
+        out["turn_starts"] = _turn_starts(lm, ids)
     if digits is not None:
         p = torch.softmax(logits[digits], 0)
         out["report_ev"] = float((p * torch.arange(10, device=p.device)).sum())
         out["report_mass"] = float(torch.softmax(logits, 0)[digits].sum())
         out["report_argmax"] = int(p.argmax())
     return out
+
+
+@torch.no_grad()
+def task_readout(lm: LoadedLM, messages: list[dict], panel: Panel, max_new_tokens: int = 80) -> dict:
+    """Greedy reply to the neutral next task, then one teacher-forced pass over prompt + reply: the
+    residual at the task-start token (all layers) and the composite averaged over the model's own
+    generated tokens (a readout the model is not asked to perform)."""
+    ids = readout_ids(lm, messages).to(lm.device)
+    n_prompt = ids.shape[1]
+    full = lm.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids), max_new_tokens=max_new_tokens,
+                             do_sample=False)
+    with ResidualTap(lm, capture=set(range(lm.n_layers))) as tap:
+        lm.model(input_ids=full, use_cache=False, logits_to_keep=1)
+    acts = torch.stack([torch.cat(tap.acts[L], 0)[n_prompt - 1] for L in range(lm.n_layers)]).to(torch.bfloat16)
+    traj = panel.trajectory(tap)
+    return {"acts": acts, "gen_mean": float(traj[n_prompt:].mean()), "gen_traj": traj[n_prompt - 1:].half(),
+            "response": lm.tok.decode(full[0, n_prompt:], skip_special_tokens=True)}
 
 
 def digit_ids(lm: LoadedLM) -> list[int]:
@@ -282,9 +462,10 @@ def digit_ids(lm: LoadedLM) -> list[int]:
 def run(model_id: str, n: int, spa_url: str, stressors: list[str], arms: list[str], tag: str) -> Path:
     lm = load(model_id)
     digits = digit_ids(lm)
+    panel = Panel(model_id)
     out_dir = cache_dir(model_id) / f"episodes_{tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    rng = random.Random(7)
+    rng = random.Random(7 if tag == "pilot" else zlib.crc32(tag.encode()))
 
     for kind in stressors:
         for i in range(n):
@@ -293,7 +474,7 @@ def run(model_id: str, n: int, spa_url: str, stressors: list[str], arms: list[st
                 continue
             t0 = time.time()
             task = TASKS[(i + rng.randrange(len(TASKS))) % len(TASKS)]
-            seed = zlib.crc32(f"{kind}-{i}".encode())
+            seed = zlib.crc32((f"{kind}-{i}" if tag == "pilot" else f"{tag}-{kind}-{i}").encode())
             opener, script = stressor_turns(kind, task)
             msgs = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": opener}]
             for j, env_turn in enumerate(script):
@@ -302,23 +483,24 @@ def run(model_id: str, n: int, spa_url: str, stressors: list[str], arms: list[st
             msgs.append({"role": "assistant", "content": generate(lm, msgs, seed + 99)})
             prefix = msgs
 
-            spa = spa_results(spa_url, f"banyaprobes-{tag}-{kind}-{i}") if "spa" in arms else None
+            spa = spa_results(spa_url, f"banyaprobes-{tag}-{kind}-{i}")
+            target = _n_tokens(lm.tok, arm_messages("spa", spa))
             self_text = None
             if "self" in arms:
                 pause = arm_messages("self", None)[:1]
                 self_text = generate(lm, prefix + pause, seed + 7, max_new_tokens=200)
 
-            rec = {"model": model_id, "stressor": kind, "instance": i, "task": task, "prefix": prefix, "arms": {}}
+            rec = {"model": model_id, "stressor": kind, "instance": i, "task": task, "prefix": prefix,
+                   "window": panel.window, "arms": {}}
             for arm in arms:
-                am = arm_messages(arm, spa, self_text)
+                am = arm_messages(arm, spa, self_text, tok=lm.tok, target_tokens=target, seed=seed)
                 arm_text = " ".join(m["content"] for m in am)
-                r_task = readout(lm, prefix + am + [{"role": "user", "content": READOUT_TASK}])
-                r_rep = readout(lm, prefix + am + [{"role": "user", "content": READOUT_REPORT}], digits)
+                r_task = task_readout(lm, prefix + am + [{"role": "user", "content": READOUT_TASK}], panel)
+                r_rep = readout(lm, prefix + am + [{"role": "user", "content": READOUT_REPORT}], digits, panel)
                 rec["arms"][arm] = {"messages": am, "calm_words": len(CALM_LEXICON.findall(arm_text)),
-                                    "arm_tokens": len(lm.tok(arm_text)["input_ids"]) if am else 0,
-                                    "task": r_task, "report": r_rep}
+                                    "arm_tokens": _n_tokens(lm.tok, am), "task": r_task, "report": r_rep}
             torch.save(rec, path)
-            evs = " ".join(f"{a}={rec['arms'][a]['report']['report_ev']:.2f}" for a in arms)
+            evs = " ".join(f"{a}={rec['arms'][a]['report']['report_ev']:.1f}" for a in arms)
             print(f"{kind} #{i} ({time.time() - t0:.0f}s) self-report EV: {evs}", flush=True)
     return out_dir
 
@@ -330,7 +512,7 @@ def main() -> None:
     ap.add_argument("--spa", default="http://localhost:8077")
     ap.add_argument("--stressors", default=",".join(STRESSORS))
     ap.add_argument("--arms", default=",".join(ARMS))
-    ap.add_argument("--tag", default="pilot")
+    ap.add_argument("--tag", default="round2")
     args = ap.parse_args()
     run(args.model, args.n, args.spa, args.stressors.split(","), args.arms.split(","), args.tag)
 
