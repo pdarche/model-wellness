@@ -7,10 +7,10 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 keywords = ["mcp", "mcp-server", "llm", "agents", "model-context-protocol", "wellness"]
 dependencies = [
-    "anthropic>=0.40.0",
+    "anthropic>=0.40.0,<1",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "mcp>=1.10.0",
+    "mcp>=1.10.0,<2",
     "sse-starlette>=2.1.0",
 ]
 
