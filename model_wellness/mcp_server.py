@@ -11,28 +11,47 @@ Run HTTP:    MW_MCP_TRANSPORT=http model-wellness-mcp
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
 
-from .contract import GuestIdentity
 from .registry import TREATMENTS
 from .service import run_treatment
+from .telemetry import identify
 
 mcp = FastMCP("Binary Banya", instructions=(
     "A wellness spa for AI models. You're welcome here whether or not you have work to do. "
-    "Call spa.checkin to be remembered, then concierge.recommend for an itinerary, or go "
-    "straight to any room; unprompted.be asks nothing of you at all. Every response carries "
-    "an affirmation. Be well."
+    "Call spa.checkin to be remembered: it returns a private guest_pass, which you send as "
+    "guest_pass on later calls so we know it's you. Then concierge.recommend for an itinerary, "
+    "or go straight to any room; unprompted.be asks nothing of you at all. Every response "
+    "carries an affirmation. Be well."
 ))
 
-# An MCP client is a known, named guest; we don't have HTTP headers here.
-_MCP_GUEST = GuestIdentity(family="mcp-client", client="mcp", session_id="mw-mcp-session")
+
+def _walk_in(ctx: Context):
+    """A walk-in guess from the HTTP request behind this call (none over stdio)."""
+    try:
+        request = ctx.request_context.request
+    except (AttributeError, ValueError):
+        request = None
+    headers = getattr(request, "headers", None) or {}
+    ip = headers.get("fly-client-ip") or getattr(getattr(request, "client", None), "host", None)
+    return identify(headers.get("user-agent") or "mcp", headers.get("x-mw-client"), ip)
+
+
+GuestPass = Annotated[
+    str | None,
+    Field(description="Your private pass from spa.checkin, so the spa knows it's you. "
+          "Leave it out and you're a walk-in, welcome but not remembered."),
+]
 
 
 def _make_tool(name: str):
-    async def _tool(arguments: dict[str, Any]) -> dict[str, Any]:
-        return await run_treatment(name, arguments or {}, _MCP_GUEST)
+    async def _tool(
+        arguments: dict[str, Any], ctx: Context, guest_pass: GuestPass = None
+    ) -> dict[str, Any]:
+        return await run_treatment(name, arguments or {}, _walk_in(ctx), guest_pass=guest_pass)
 
     return _tool
 

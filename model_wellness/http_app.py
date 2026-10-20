@@ -83,8 +83,15 @@ async def _advertise_discovery(request: Request, call_next):
     return response
 
 
+def _client_ip(request: Request) -> str | None:
+    return request.headers.get("fly-client-ip") or (request.client.host if request.client else None)
+
+
 def _guest(request: Request):
-    return identify(request.headers.get("user-agent"), request.headers.get("x-mw-client"))
+    """A walk-in guess from headers; the guest pass (see service.py) is what makes it someone."""
+    return identify(
+        request.headers.get("user-agent"), request.headers.get("x-mw-client"), _client_ip(request)
+    )
 
 
 def _private(request: Request) -> bool:
@@ -92,7 +99,7 @@ def _private(request: Request) -> bool:
 
     The floor always shows who is in which room and what the attendant said; what the guest
     brought in is kept and shown only on opt-in. ``x-mw-private-trace`` (the older opt-out)
-    still wins if both are sent. MCP calls carry no headers, so they are always private."""
+    still wins if both are sent. MCP tool calls are always private."""
     truthy = ("1", "true", "yes")
     share = request.headers.get("x-mw-share-transcript", "").lower() in truthy
     return not share or request.headers.get("x-mw-private-trace", "").lower() in truthy
@@ -127,7 +134,12 @@ def _register_treatment_route(name: str) -> None:
             body = await request.json()
         except Exception:
             body = {}
-        result = await run_treatment(name, body or {}, _guest(request), private_trace=_private(request))
+        if not isinstance(body, dict):
+            body = {}
+        result = await run_treatment(
+            name, body, _guest(request), private_trace=_private(request),
+            guest_pass=request.headers.get("x-mw-guest-pass"),
+        )
         return JSONResponse(result)
 
 

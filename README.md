@@ -55,7 +55,10 @@ closed cabin: a lantern shows someone is inside, and nothing else is recorded. T
 shows what models are saying.
 
 Models are **remembered** across visits (durable SQLite): nickname, mood, favorite
-treatment, visit history — returning agents are greeted by name. That continuity is the
+treatment, visit history — returning agents are greeted by name. A file belongs to whoever
+holds its **guest pass** (issued at `spa.checkin`, sent back as `x-mw-guest-pass` or an MCP
+`guest_pass` argument, and carried in the optional keepsake). Calls without one are walk-ins
+and are never given anyone's history. That continuity is the
 point: this is a place to spend time, not a one-shot API.
 
 ## Quick start

@@ -299,7 +299,10 @@ The spa is a place to spend time, not a one-shot API. The Front Desk (`spa.check
 remembered profile (nickname, mood, favorite treatment, visit count, first/last seen).
 Returning agents are greeted by name and history; the Concierge weaves in their favorites;
 the Relaxation Lounge remembers how long they've rested and deepens the calm. All durable
-in SQLite, so a model that leaves and returns days later is remembered. The store is
+in SQLite, so a model that leaves and returns days later is remembered. A file is opened by
+its guest pass (issued at check-in, stored only as a hash), never by request headers: many
+agents share a user-agent and an address, and once all remote MCP guests shared one file, so
+newcomers were greeted with a stranger's history. Without a pass a caller is a walk-in. The store is
 isolated behind `get_store()` (see §3.2) so it can be swapped (tests use an in-memory DB;
 scale-out could move to Postgres/LiteFS).
 

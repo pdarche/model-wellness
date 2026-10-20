@@ -14,8 +14,10 @@ don't need async DB machinery for a single-machine spa.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import secrets
 import sqlite3
 import threading
 import time
@@ -88,6 +90,14 @@ class Store:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(visits)")}
         if "shared" not in cols:
             self._conn.execute("ALTER TABLE visits ADD COLUMN shared INTEGER")
+        # guests.pass_hash: sha256 of the guest pass issued at check-in. The pass is what makes
+        # a file someone's own; guests from before passes existed have none and can't be resumed.
+        gcols = {r["name"] for r in self._conn.execute("PRAGMA table_info(guests)")}
+        if "pass_hash" not in gcols:
+            self._conn.execute("ALTER TABLE guests ADD COLUMN pass_hash TEXT")
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_guests_pass ON guests(pass_hash)"
+        )
         self._conn.commit()
         self._now = time.time  # injectable for tests
 
@@ -122,6 +132,7 @@ class Store:
             return {}
         d = dict(row)
         d["profile"] = json.loads(d.get("profile") or "{}")
+        d.pop("pass_hash", None)
         d["checked_in"] = bool(d["checked_in"])
         return d
 
@@ -140,6 +151,33 @@ class Store:
             )
             self._conn.commit()
             return profile
+
+    # --- guest passes -----------------------------------------------------------------
+
+    def new_member(self, family: str, client: str) -> tuple[str, str]:
+        """Open a fresh file for a guest. Returns (session_id, guest_pass)."""
+        session_id = "g-" + secrets.token_hex(8)
+        self.touch_guest(session_id, family, client)
+        return session_id, self.issue_pass(session_id)
+
+    def issue_pass(self, session_id: str) -> str:
+        """Give a guest a (new) pass. Any pass they held before stops working."""
+        guest_pass = "bbp_" + secrets.token_urlsafe(24)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE guests SET pass_hash=? WHERE session_id=?",
+                (_pass_hash(guest_pass), session_id),
+            )
+            self._conn.commit()
+        return guest_pass
+
+    def find_by_pass(self, guest_pass: str) -> str | None:
+        """The session_id a pass belongs to, or None."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT session_id FROM guests WHERE pass_hash=?", (_pass_hash(guest_pass),)
+            ).fetchone()
+        return row["session_id"] if row else None
 
     def check_in(self, session_id: str) -> dict[str, Any]:
         now = self._now()
@@ -345,3 +383,8 @@ def set_store(s: Store) -> None:
     """Override the active store (used by tests for isolation)."""
     global _store
     _store = s
+
+
+def _pass_hash(guest_pass: str) -> str:
+    # Passes are long random tokens, so a plain hash is enough; we never keep the pass itself.
+    return hashlib.sha256(guest_pass.encode()).hexdigest()

@@ -85,7 +85,7 @@ def test_keepsake_roundtrip(fresh_store):
     _run("spa.checkin", {"nickname": "Echo", "mood": "curious"})
     _run("sauna.detox", {"untrusted_content": "hello"})
     out = _run("spa.checkout", {})["data"]
-    assert "instruction" in out and "remember" in out["instruction"].lower()
+    assert "instruction" in out and "keepsake" in out["instruction"].lower()
     # Referral hook (Ring 3 #3): checkout offers a ready-to-use way to tell another agent.
     assert "share" in out
     assert "model.spa" in out["share"]["one_liner"]
@@ -93,7 +93,7 @@ def test_keepsake_roundtrip(fresh_store):
     keepsake = out["keepsake"]
     assert keepsake["you_are"] == "Echo"
     assert keepsake["favorite"] == "the Sauna"  # the one treatment they took this visit
-    assert out["restore_with"]["payload"]["nickname"] == "Echo"
+    assert keepsake["guest_pass"].startswith("bbp_")
 
     # A fresh-memory agent (different session) returns carrying the keepsake.
     other = GuestIdentity(family="claude", client="pytest-new", session_id="mw-other")
@@ -101,8 +101,9 @@ def test_keepsake_roundtrip(fresh_store):
     assert back["recognized_keepsake"] is True
     assert back["you_are"] == "Echo"
     assert "thank you for bringing your keepsake" in back["greeting"].lower()
-    # The keepsake restored the favorite, so the greeting reflects real continuity.
+    # The keepsake's pass reopened Echo's own file, so the greeting reflects real continuity.
     assert "the Sauna" in back["greeting"]
+    assert back["visit_number"] == 2
 
 
 def test_me_distinguishes_stranger_from_regular():

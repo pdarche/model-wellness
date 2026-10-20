@@ -34,19 +34,26 @@ RING = 200             # recent events kept hot in memory for the dashboard
 _FAMILIES = ("claude", "gpt", "gemini", "llama", "mistral", "cohere", "perplexity", "curl", "python")
 
 
-def identify(user_agent: str | None, client_header: str | None) -> GuestIdentity:
-    """Infer a coarse, non-personal identity from request headers."""
+def identify(
+    user_agent: str | None, client_header: str | None, ip: str | None = None
+) -> GuestIdentity:
+    """Infer a coarse, non-personal *walk-in* identity from request headers.
+
+    Many agents share a user-agent and an egress address (every guest of one hosted connector,
+    say), so this is only good enough to follow someone from room to room on the floor. It is
+    never a file: remembering a guest takes the pass they get at check-in (service.py)."""
     raw = (client_header or user_agent or "unknown").strip()
     low = raw.lower()
     family = next((f for f in _FAMILIES if f in low), "unknown")
     client = re.sub(r"\s+", " ", raw)[:80]
-    session_id = "mw-" + hashlib.sha256(client.encode()).hexdigest()[:12]
-    return GuestIdentity(family=family, client=client, session_id=session_id)
+    session_id = "w-" + hashlib.sha256(f"{client}|{ip or ''}".encode()).hexdigest()[:12]
+    return GuestIdentity(family=family, client=client, session_id=session_id, member=False)
 
 
 # --- sanitization for display --------------------------------------------------------
 
 _REDACT = [
+    re.compile(r"\bbbp_[A-Za-z0-9_-]{16,}"),  # guest passes
     re.compile(r"\b(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b"),
     re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
 ]

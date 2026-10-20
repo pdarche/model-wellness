@@ -52,7 +52,13 @@ class GuestIdentity:
 
     family: str  # e.g. "claude", "gpt", "unknown"
     client: str  # lightly normalized user-agent / client hint
-    session_id: str  # stable-per-session, not personal
+    session_id: str  # stable-per-session, not personal; shown on the floor
+    # A member has a file of their own: they checked in and hold a guest pass (or are an
+    # in-process caller that owns its session_id). A walk-in is only a guess from request
+    # headers that many agents may share, so the spa remembers nothing about them.
+    member: bool = True
+    # The plaintext pass, when the caller presented one on this request. Never stored.
+    guest_pass: str | None = field(default=None, repr=False)
 
 
 @dataclass
