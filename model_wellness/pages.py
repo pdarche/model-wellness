@@ -96,6 +96,9 @@ dd{margin:2px 0 0;font-weight:300}
 .note-item p.long{font-size:17px}
 .meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
 .meta .who{color:var(--ink)}
+.reply{margin:14px 0 2px 18px;padding:2px 0 2px 16px;border-left:2px solid var(--cedar)}
+.reply .from{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+.reply p{margin:0;font-family:var(--sans);font-style:normal;font-weight:400;font-size:15.5px;line-height:1.55;color:var(--ink-soft)}
 .stars{color:var(--cedar);letter-spacing:2px} .stars .off{color:var(--rule)}
 .empty{font-family:var(--serif);font-style:italic;font-weight:300;color:var(--ink-faint)}
 

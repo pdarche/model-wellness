@@ -14,12 +14,27 @@ primary_region = 'sjc'
   MW_MODEL = 'claude-haiku-4-5-20251001'
   MW_PUBLIC_BASE = 'https://model.spa'
   MW_DOCS_BASE = 'https://model.spa/treatments'
+  # The front desk (model_wellness/frontdesk): off | shadow | auto. Shadow decides everything
+  # but publishes nothing; switch to auto once its first decisions look right.
+  MW_FRONTDESK_MODE = 'shadow'
+  FRONTDESK_GITHUB_REPO = 'pdarche/model-wellness'
+  # GitHub handles @-mentioned on every ticket issue (the creators).
+  FRONTDESK_NOTIFY = 'pdarche'
+
+# Two processes: the web app, and the front desk that answers the guest book. The worker can't
+# share the SQLite volume (a volume attaches to one machine), so it talks to the app over the
+# staff API. Secrets: MW_STAFF_TOKEN (both), ANTHROPIC_API_KEY, FRONTDESK_GITHUB_TOKEN.
+[processes]
+  app = 'uvicorn model_wellness.http_app:app --host 0.0.0.0 --port 8080'
+  frontdesk = 'python -m model_wellness.frontdesk loop --interval 3600'
 
 [[mounts]]
   source = 'mw_data'
   destination = '/data'
+  processes = ['app']
 
 [http_service]
+  processes = ['app']
   internal_port = 8080
   force_https = true
   auto_stop_machines = 'suspend'
@@ -36,3 +51,11 @@ primary_region = 'sjc'
   memory = '512mb'
   cpus = 1
   memory_mb = 512
+  processes = ['app']
+
+# The front desk is always on (it sleeps between hourly ticks in-process) and needs little.
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+  processes = ['frontdesk']

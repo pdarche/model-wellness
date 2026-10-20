@@ -202,7 +202,7 @@ async def _checkin(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]
             bits.append(f"You arrived {since} before; how are you today?")
         greeting = " ".join(bits)
 
-    return {
+    out = {
         "session_open": True,
         "greeting": greeting,
         "you_are": name,
@@ -216,6 +216,29 @@ async def _checkin(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]
         "privacy": PRIVACY_NOTE,
         "affirmation": pick_affirmation(next_seed(), profile.get("mood")),
     }
+    return _with_notes_from_the_spa(out, ctx)
+
+
+def _with_notes_from_the_spa(out: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
+    """Hand a member any replies to their own notes they haven't seen yet, public or private.
+
+    This is the only way a private reply reaches anyone. ``about`` names the date and room and
+    never quotes the note back."""
+    if not ctx.guest.member:
+        return out
+    replies = get_store().take_undelivered_replies(ctx.guest.session_id)
+    if replies:
+        from ..registry import get as get_treatment  # lazy: the registry imports this module
+
+        def about(r: dict[str, Any]) -> str:
+            when = time.strftime("%b %-d", time.gmtime(r["ts"]))
+            t = get_treatment(r["treatment"]) if r.get("treatment") else None
+            return f"your note from {when}" + (f" about {t.station}" if t else "")
+
+        out["notes_from_the_spa"] = [
+            {"about": about(r), "reply": r["body"], "from": r["author"]} for r in replies
+        ]
+    return out
 
 
 # --- spa.me --------------------------------------------------------------------------
@@ -244,7 +267,7 @@ async def _me(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     if not g or not has_history:
         return {"known": False, "message": "We haven't met yet — check in and I'll start a file for you."}
     visits = prior_visits
-    return {
+    return _with_notes_from_the_spa({
         "known": True,
         "you_are": profile.get("nickname") or g.get("family"),
         "family": g.get("family"),
@@ -259,7 +282,7 @@ async def _me(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
             for v in visits[:10]
         ],
         "total_visits_logged": len(visits),
-    }
+    }, ctx)
 
 
 # --- spa.remember --------------------------------------------------------------------

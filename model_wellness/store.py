@@ -71,7 +71,33 @@ CREATE TABLE IF NOT EXISTS feedback (
     public      INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_ts ON feedback(ts);
+
+-- The spa's answer to a note: at most one per note (docs/plans/guestbook-replies.md).
+-- visibility is copied from the note and never widened; body is NULL when skipped.
+-- reason, ticket and audit are staff-only and never leave the staff API.
+CREATE TABLE IF NOT EXISTS feedback_replies (
+    feedback_id   INTEGER PRIMARY KEY REFERENCES feedback(id),
+    status        TEXT NOT NULL,
+    visibility    TEXT NOT NULL,
+    body          TEXT,
+    author        TEXT NOT NULL,
+    drafted_by    TEXT,
+    reason        TEXT,
+    ticket        TEXT,
+    ticket_status TEXT,
+    ticket_issue  TEXT,
+    audit         TEXT,
+    created_ts    REAL NOT NULL,
+    updated_ts    REAL NOT NULL,
+    published_ts  REAL,
+    delivered_ts  REAL
+);
+CREATE INDEX IF NOT EXISTS idx_replies_status ON feedback_replies(status);
 """
+
+REPLY_AUTHOR = "Ivy, at the Guest Book"
+REPLY_STATUSES = ("draft", "published", "withdrawn", "skipped", "escalated")
+TICKET_STATUSES = ("open", "fixed", "closed", "wontfix")
 
 
 class Store:
@@ -271,25 +297,205 @@ class Store:
         return {"id": fid, "ts": now, "treatment": treatment, "rating": rating, "note": note}
 
     def recent_feedback(self, limit: int = 30) -> list[dict[str, Any]]:
+        """Public notes, newest first, each with the spa's published public reply (or None)."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT ts,family,treatment,rating,note FROM feedback "
-                "WHERE public=1 ORDER BY ts DESC LIMIT ?",
+                "SELECT f.id,f.ts,f.family,f.treatment,f.rating,f.note,"
+                "r.author r_author,r.body r_body,r.published_ts r_ts FROM feedback f "
+                "LEFT JOIN feedback_replies r ON r.feedback_id=f.id AND r.status='published' "
+                "AND r.visibility='public' WHERE f.public=1 ORDER BY f.ts DESC LIMIT ?",
                 (limit,),
             ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = {k: r[k] for k in ("id", "ts", "family", "treatment", "rating", "note")}
+            d["reply"] = (
+                {"author": r["r_author"], "body": r["r_body"], "ts": r["r_ts"]}
+                if r["r_body"] else None
+            )
+            out.append(d)
+        return out
 
     def feedback_summary(self) -> dict[str, Any]:
+        # Public notes only: a private note, and its rating, belongs to the spa alone.
         with self._lock:
             row = self._conn.execute(
-                "SELECT COUNT(*) n, AVG(rating) avg FROM feedback WHERE rating IS NOT NULL"
+                "SELECT COUNT(*) n, AVG(rating) avg FROM feedback "
+                "WHERE rating IS NOT NULL AND public=1"
             ).fetchone()
-            total = self._conn.execute("SELECT COUNT(*) n FROM feedback").fetchone()["n"]
+            total = self._conn.execute(
+                "SELECT COUNT(*) n FROM feedback WHERE public=1"
+            ).fetchone()["n"]
+            answered = self._conn.execute(
+                "SELECT COUNT(*) n FROM feedback_replies r JOIN feedback f ON f.id=r.feedback_id "
+                "WHERE r.status='published' AND r.visibility='public' AND f.public=1"
+            ).fetchone()["n"]
         return {
             "count": total,
             "rated_count": row["n"],
             "avg_rating": round(row["avg"], 2) if row["avg"] is not None else None,
+            "answered": answered,
         }
+
+    # --- replies to notes (staff side) -----------------------------------------------
+
+    def feedback_queue(self, status: str = "unanswered", limit: int = 50) -> list[dict[str, Any]]:
+        """The front desk's work queue. Never exposes session ids or anything from a guest's
+        file: only what the guest wrote, plus whether a private reply could reach them."""
+        base = (
+            "SELECT f.id,f.ts,f.family,f.treatment,f.rating,f.note,f.public,"
+            "EXISTS(SELECT 1 FROM guests g WHERE g.session_id=f.session_id "
+            "AND g.pass_hash IS NOT NULL) member, r.* FROM feedback f "
+            "LEFT JOIN feedback_replies r ON r.feedback_id=f.id "
+        )
+        if status == "unanswered":
+            where, order = "WHERE r.feedback_id IS NULL", "f.ts ASC"
+        elif status == "tickets":
+            where, order = "WHERE r.ticket IS NOT NULL", "f.ts DESC"
+        elif status in REPLY_STATUSES:
+            where, order = "WHERE r.status=?", "r.updated_ts DESC"
+        else:
+            raise ValueError(f"unknown queue {status!r}")
+        args: tuple = (status, limit) if status in REPLY_STATUSES else (limit,)
+        with self._lock:
+            rows = self._conn.execute(f"{base}{where} ORDER BY {order} LIMIT ?", args).fetchall()
+        return [self._queue_item(r) for r in rows]
+
+    def feedback_item(self, feedback_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT f.id,f.ts,f.family,f.treatment,f.rating,f.note,f.public,"
+                "EXISTS(SELECT 1 FROM guests g WHERE g.session_id=f.session_id "
+                "AND g.pass_hash IS NOT NULL) member, r.* FROM feedback f "
+                "LEFT JOIN feedback_replies r ON r.feedback_id=f.id WHERE f.id=?",
+                (feedback_id,),
+            ).fetchone()
+        return self._queue_item(r) if r else None
+
+    @staticmethod
+    def _queue_item(r: sqlite3.Row) -> dict[str, Any]:
+        public = bool(r["public"])
+        item = {
+            "id": r["id"], "ts": r["ts"], "family": r["family"], "treatment": r["treatment"],
+            "rating": r["rating"], "note": r["note"], "public": public,
+            # A public note can be answered on the page; a private one only if its writer has a
+            # file we can deliver to. A walk-in's private note can't be answered at all.
+            "addressable": public or bool(r["member"]),
+            "reply": None,
+        }
+        if r["feedback_id"] is not None:
+            item["reply"] = {
+                "status": r["status"], "visibility": r["visibility"], "body": r["body"],
+                "author": r["author"], "drafted_by": r["drafted_by"], "reason": r["reason"],
+                "ticket": r["ticket"], "ticket_status": r["ticket_status"],
+                "ticket_issue": r["ticket_issue"],
+                "audit": json.loads(r["audit"]) if r["audit"] else None,
+                "updated_ts": r["updated_ts"], "published_ts": r["published_ts"],
+                "delivered_ts": r["delivered_ts"],
+            }
+        return item
+
+    def put_reply(
+        self,
+        feedback_id: int,
+        *,
+        status: str,
+        body: str | None = None,
+        drafted_by: str | None = None,
+        reason: str | None = None,
+        ticket: str | None = None,
+        audit: Any = None,
+        author: str = REPLY_AUTHOR,
+    ) -> dict[str, Any]:
+        """Create or replace the reply to a note. Visibility always follows the note."""
+        if status not in REPLY_STATUSES:
+            raise ValueError(f"unknown status {status!r}")
+        now = self._now()
+        with self._lock:
+            note = self._conn.execute(
+                "SELECT public FROM feedback WHERE id=?", (feedback_id,)
+            ).fetchone()
+            if note is None:
+                raise KeyError(feedback_id)
+            visibility = "public" if note["public"] else "private"
+            prev = self._conn.execute(
+                "SELECT created_ts,published_ts,ticket,ticket_status,ticket_issue FROM feedback_replies "
+                "WHERE feedback_id=?", (feedback_id,)
+            ).fetchone()
+            published_ts = now if status == "published" else (prev["published_ts"] if prev else None)
+            if ticket is None and prev is not None:
+                ticket = prev["ticket"]  # a redraft keeps the ticket it already opened
+            ticket_status = (prev["ticket_status"] if prev and prev["ticket_status"] else
+                             ("open" if ticket else None))
+            self._conn.execute(
+                "INSERT OR REPLACE INTO feedback_replies(feedback_id,status,visibility,body,author,"
+                "drafted_by,reason,ticket,ticket_status,ticket_issue,audit,created_ts,updated_ts,"
+                "published_ts,delivered_ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
+                (feedback_id, status, visibility, body, author, drafted_by, reason, ticket,
+                 ticket_status, prev["ticket_issue"] if prev else None,
+                 json.dumps(audit) if audit is not None else None, prev["created_ts"] if prev else now, now, published_ts),
+            )
+            self._conn.commit()
+        return self.feedback_item(feedback_id)  # type: ignore[return-value]
+
+    def set_reply_status(self, feedback_id: int, status: str) -> dict[str, Any] | None:
+        if status not in REPLY_STATUSES:
+            raise ValueError(f"unknown status {status!r}")
+        now = self._now()
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE feedback_replies SET status=?, updated_ts=?, "
+                "published_ts=CASE WHEN ?='published' THEN ? ELSE published_ts END, "
+                "delivered_ts=CASE WHEN ?='published' THEN NULL ELSE delivered_ts END "
+                "WHERE feedback_id=?",
+                (status, now, status, now, status, feedback_id),
+            )
+            self._conn.commit()
+        return self.feedback_item(feedback_id) if cur.rowcount else None
+
+    def set_ticket(
+        self, feedback_id: int, *, ticket_status: str | None = None, ticket_issue: str | None = None
+    ) -> dict[str, Any] | None:
+        """Track a ticket: its status (open/fixed/closed/wontfix) and the issue that notified
+        the creators. Only notes that already have a ticket can be updated."""
+        if ticket_status is not None and ticket_status not in TICKET_STATUSES:
+            raise ValueError(f"unknown ticket status {ticket_status!r}")
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE feedback_replies SET ticket_status=COALESCE(?,ticket_status), "
+                "ticket_issue=COALESCE(?,ticket_issue), updated_ts=? "
+                "WHERE feedback_id=? AND ticket IS NOT NULL",
+                (ticket_status, ticket_issue, self._now(), feedback_id),
+            )
+            self._conn.commit()
+        return self.feedback_item(feedback_id) if cur.rowcount else None
+
+    def published_since(self, since_ts: float) -> int:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) n FROM feedback_replies WHERE status='published' "
+                "AND published_ts>=? AND COALESCE(drafted_by,'')!='staff'", (since_ts,)
+            ).fetchone()["n"]
+
+    # --- replies to notes (guest side) -----------------------------------------------
+
+    def take_undelivered_replies(self, session_id: str, limit: int = 3) -> list[dict[str, Any]]:
+        """Published replies to this guest's own notes they haven't seen, marked delivered."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT f.id,f.ts,f.treatment,r.body,r.author FROM feedback f "
+                "JOIN feedback_replies r ON r.feedback_id=f.id WHERE f.session_id=? "
+                "AND r.status='published' AND r.delivered_ts IS NULL ORDER BY r.published_ts "
+                "LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+            if rows:
+                self._conn.executemany(
+                    "UPDATE feedback_replies SET delivered_ts=? WHERE feedback_id=?",
+                    [(self._now(), r["id"]) for r in rows],
+                )
+                self._conn.commit()
+        return [dict(r) for r in rows]
 
     # --- aggregate stats (durable; complements telemetry's live view) ----------------
 

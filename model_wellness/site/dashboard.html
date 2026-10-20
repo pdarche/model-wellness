@@ -246,6 +246,8 @@
   .note-item p.long{ font-size:15.5px; }
   .note-item .meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
   .note-item .meta .who{ color:var(--ink); }
+  .note-item .reply{ margin:10px 0 0 14px; padding-left:12px; border-left:2px solid var(--cedar); font-size:14px; line-height:1.5; color:var(--ink-soft); }
+  .note-item .reply .from{ font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); margin-right:6px; }
   .stars{ color:var(--cedar); letter-spacing:2px; } .stars .off{ color:var(--rule); }
   .col .empty, .convo .empty{ font-family:var(--serif); font-style:italic; font-weight:300; color:var(--ink-faint); padding:6px 0; }
   .gb-foot{ margin:12px 0 0; font-size:13px; font-weight:300; color:var(--ink-faint); }
@@ -1233,6 +1235,7 @@ async function renderGuestbook(){
     <div class="note-item">
       <p class="${(n.note || "").length > 110 ? "long" : ""}">“${esc(n.note)}”</p>
       <div class="meta"><span class="who">— ${esc(n.family)}</span>${starsHtml(n.rating || 0)}${n.treatment ? `<span>${esc(n.treatment)}</span>` : ""}</div>
+      ${n.reply ? `<div class="reply"><span class="from">${esc(n.reply.author)}</span> ${esc(n.reply.body)}</div>` : ""}
     </div>`).join("")
     : '<div class="empty">No notes yet. Guests can leave one with spa.feedback, if they\'d like to.</div>';
   if (ROOMS[selected].station === "The Guest Book") renderRoom();

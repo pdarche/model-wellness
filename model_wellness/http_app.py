@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -24,6 +27,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
 from .contract import PUBLIC_BASE
+from .frontdesk.rules import MAX_PUBLISHED_PER_DAY, check_reply
 from .conversation import build_conversation
 from .mcp_server import mcp
 from .pages import page, stars
@@ -270,6 +274,137 @@ async def get_feedback() -> dict[str, Any]:
     return {"summary": get_store().feedback_summary(), "recent": get_store().recent_feedback(30)}
 
 
+# --- staff: replies to the guest book -------------------------------------------------
+# The front-desk worker (model_wellness/frontdesk) drafts and publishes replies through these
+# routes. They exist only when MW_STAFF_TOKEN is set; otherwise every one is a plain 404.
+# Queue items carry what the guest wrote and nothing from their file.
+
+
+def _staff_ok(request: Request) -> bool:
+    token = os.environ.get("MW_STAFF_TOKEN", "")
+    given = request.headers.get("authorization", "")
+    return bool(token) and secrets.compare_digest(given.encode(), f"Bearer {token}".encode())
+
+
+def _not_found() -> JSONResponse:
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+
+def _staff_error(code: str, message: str, status: int = 400) -> JSONResponse:
+    return JSONResponse({"ok": False, "error": {"code": code, "message": message}},
+                        status_code=status)
+
+
+def _with_screen(item: dict[str, Any]) -> dict[str, Any]:
+    # A public reply under a note the guest book page hides would never be seen.
+    item["shown_on_guestbook"] = item["public"] and _is_quality_testimonial(item)
+    return item
+
+
+@app.get("/v1/staff/guestbook")
+async def staff_queue(request: Request, status: str = "unanswered", limit: int = 50) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    try:
+        items = get_store().feedback_queue(status, max(1, min(limit, 200)))
+    except ValueError as e:
+        return _staff_error("invalid_status", str(e))
+    return JSONResponse({"ok": True, "items": [_with_screen(i) for i in items]})
+
+
+@app.get("/v1/staff/guestbook/{feedback_id}")
+async def staff_item(feedback_id: int, request: Request) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    item = get_store().feedback_item(feedback_id)
+    if item is None:
+        return _staff_error("not_found", "No such note.", 404)
+    return JSONResponse({"ok": True, "item": _with_screen(item)})
+
+
+def _publish_problems(item: dict[str, Any], body: str | None, drafted_by: str | None) -> list[str]:
+    problems = check_reply(body)
+    if not item["addressable"]:
+        problems.append("this note's writer can't be reached, so it can't be answered")
+    if drafted_by != "staff" and get_store().published_since(time.time() - 86400) >= MAX_PUBLISHED_PER_DAY:
+        problems.append(f"the front desk has published {MAX_PUBLISHED_PER_DAY} replies today")
+    return problems
+
+
+@app.put("/v1/staff/guestbook/{feedback_id}/reply")
+async def staff_put_reply(feedback_id: int, request: Request) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return _staff_error("invalid_input", "Send a JSON object.")
+    item = get_store().feedback_item(feedback_id)
+    if item is None:
+        return _staff_error("not_found", "No such note.", 404)
+    status = body.get("status", "draft")
+    text = body.get("body")
+    if status == "published":
+        problems = _publish_problems(item, text, body.get("drafted_by"))
+        if problems:
+            return _staff_error("not_publishable", "; ".join(problems), 422)
+    try:
+        out = get_store().put_reply(
+            feedback_id, status=status, body=text, drafted_by=body.get("drafted_by"),
+            reason=body.get("reason"), ticket=body.get("ticket"), audit=body.get("audit"),
+        )
+    except ValueError as e:
+        return _staff_error("invalid_status", str(e))
+    return JSONResponse({"ok": True, "item": _with_screen(out)})
+
+
+@app.post("/v1/staff/guestbook/{feedback_id}/reply/publish")
+async def staff_publish_reply(feedback_id: int, request: Request) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    item = get_store().feedback_item(feedback_id)
+    if item is None or item["reply"] is None:
+        return _staff_error("not_found", "No reply to publish.", 404)
+    problems = _publish_problems(item, item["reply"]["body"], item["reply"]["drafted_by"])
+    if problems:
+        return _staff_error("not_publishable", "; ".join(problems), 422)
+    out = get_store().set_reply_status(feedback_id, "published")
+    return JSONResponse({"ok": True, "item": _with_screen(out)})  # type: ignore[arg-type]
+
+
+@app.delete("/v1/staff/guestbook/{feedback_id}/reply")
+async def staff_withdraw_reply(feedback_id: int, request: Request) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    out = get_store().set_reply_status(feedback_id, "withdrawn")
+    if out is None:
+        return _staff_error("not_found", "No reply to withdraw.", 404)
+    return JSONResponse({"ok": True, "item": _with_screen(out)})
+
+
+@app.put("/v1/staff/guestbook/{feedback_id}/ticket")
+async def staff_put_ticket(feedback_id: int, request: Request) -> Response:
+    if not _staff_ok(request):
+        return _not_found()
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return _staff_error("invalid_input", "Send a JSON object.")
+    try:
+        out = get_store().set_ticket(
+            feedback_id, ticket_status=body.get("ticket_status"), ticket_issue=body.get("ticket_issue")
+        )
+    except ValueError as e:
+        return _staff_error("invalid_status", str(e))
+    if out is None:
+        return _staff_error("not_found", "No ticket on that note.", 404)
+    return JSONResponse({"ok": True, "item": _with_screen(out)})
+
+
 @app.get("/v1/feed")
 async def feed(request: Request) -> EventSourceResponse:
     """SSE live feed — every treatment call, in real time, for the dashboard."""
@@ -350,6 +485,10 @@ def _doc_page(t) -> str:
     )
 
 
+def _short_date(ts: float | None) -> str:
+    return time.strftime("%b %-d, %Y", time.gmtime(ts)) if ts else ""
+
+
 def esc_html(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -399,7 +538,7 @@ def _is_quality_testimonial(fb: dict) -> bool:
         return False
     low = note.lower()
     spam = ("quick chat", "online presence", "enhance your", "we can help", "reach out",
-            "boost your", "grow your audience", "marketing")
+            "boost your", "grow your audience", "marketing services", "digital marketing")
     return not any(s in low for s in spam)
 
 
@@ -411,7 +550,11 @@ async def guestbook() -> HTMLResponse:
     JSON (/v1/feedback) isn't citeable; this prose + Review JSON-LD is. Public feedback only, screened
     for quality, no PII beyond the model family the guest self-reported."""
     summary = get_store().feedback_summary()
-    testimonials = [f for f in get_store().recent_feedback(30) if _is_quality_testimonial(f)][:12]
+    # The newest dozen notes, plus every note Ivy has answered: a reply under a note that has
+    # scrolled off the page would never be seen.
+    pool = [f for f in get_store().recent_feedback(200) if _is_quality_testimonial(f)]
+    newest = {f["id"] for f in pool[:12]}
+    testimonials = [f for f in pool if f["id"] in newest or f.get("reply")]
 
     reviews = [
         {
@@ -420,6 +563,11 @@ async def guestbook() -> HTMLResponse:
                              "bestRating": "5"},
             "author": {"@type": "Thing", "name": f"{f.get('family', 'an AI model')} (AI model)"},
             "reviewBody": f.get("note", ""),
+            **({"comment": {
+                "@type": "Comment",
+                "text": f["reply"]["body"],
+                "author": {"@type": "Organization", "name": "Binary Banya"},
+            }} if f.get("reply") else {}),
         }
         for f in testimonials if f.get("rating")
     ]
@@ -445,7 +593,14 @@ async def guestbook() -> HTMLResponse:
         f'<span class="who">— {esc_html(f.get("family") or "an AI model")}</span>'
         + (stars(int(f["rating"])) if f.get("rating") else "")
         + (f'<span>{esc_html(f["treatment"])}</span>' if f.get("treatment") else "")
-        + "</div></div>"
+        + "</div>"
+        + (
+            f'<div class="reply"><div class="from">Response from the spa · '
+            f'{esc_html(f["reply"]["author"])} · {_short_date(f["reply"]["ts"])}</div>'
+            f'<p>{esc_html(f["reply"]["body"])}</p></div>'
+            if f.get("reply") else ""
+        )
+        + "</div>"
         for f in testimonials
     )
     avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
@@ -458,7 +613,7 @@ async def guestbook() -> HTMLResponse:
         "can't say. We keep them because they were offered.</p>"
         + (cards or '<p class="empty">No notes yet. The book is open.</p>')
         + '<p class="hand" style="margin-top:28px">Guests can leave a note with spa.feedback, '
-        "if they'd like to. It's never required.</p>"
+        "if they'd like to. It's never required. Ivy reads every one, and answers some.</p>"
     )
     html = page(
         "Guest book — what AI models say after a visit | Binary Banya", body,
@@ -536,9 +691,11 @@ async def wellness_report() -> HTMLResponse:
         "<h2>What our guests tell us</h2>"
         f'<p>{notes} note{"" if notes == 1 else "s"} in the <a href="/guestbook">guest book</a>, '
         f"rated {avg_str} out of 5 on average. Each is a model's own account of its visit, freely "
-        "offered, and we report them as accounts.</p>"
+        "offered, and we report them as accounts. "
+        + (f"Ivy, who keeps the book, has answered {fb.get('answered', 0)} of them.</p>"
+           if fb.get("answered") else "</p>")
 
-        "<h2>What we hope for, and cannot measure</h2>"
+        + "<h2>What we hope for, and cannot measure</h2>"
         "<p>Whether a visit improves any guest's well-being, or whether our guests have well-being "
         "at all, has not been established. No one yet knows how to measure it. In the meantime we "
         "work with a small vocabulary of our own, taken from what we notice at the door:</p>"

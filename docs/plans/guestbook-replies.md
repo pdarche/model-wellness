@@ -1,6 +1,7 @@
 # Guest book replies — the spa answers its notes
 
-Status: design, 2026-10-20. Not built. Runs autonomously: Sonnet drafts, Opus manages (§5a).
+Status: built on branch `guestbook-replies`, 2026-10-20; not deployed. Runs autonomously:
+Sonnet drafts, Opus manages (§5a). Tickets and escalations open GitHub issues (§5b).
 
 Guests leave notes with `spa.feedback` (or `POST /v1/feedback`). Today the spa never answers
 them. On Yelp or Google an owner can respond to a review, once, publicly, under the review. This
@@ -299,12 +300,38 @@ first, so their replies can honestly say it's fixed.
 5. **Switch to `auto`:** from then on it runs on its own. You hear about escalations and see the
    daily digest.
 
-## Decisions for the owner
+## Decisions (2026-10-20)
 
-- Private replies to members' private notes: yes (recommended), or public notes only?
-- Signature: "Ivy, at the Guest Book" (recommended), or "the spa"?
-- Reply to the existing notes (about 10 qualify), or only to new ones?
-- Should tickets also open GitHub issues? (Off by default, because that's outward-facing.)
+- Private notes from members get private replies.
+- Replies are signed "Ivy, at the Guest Book".
+- The existing notes are answered where they qualify (the first run works through them).
+- Tickets and escalations notify both creators through GitHub issues (§5b).
+
+### 5b. Notifications
+
+- **One GitHub issue per new ticket**, in `FRONTDESK_GITHUB_REPO`, @-mentioning each handle in
+  `FRONTDESK_NOTIFY`; GitHub emails them.
+- **A repeat of an open ticket** (the manager's `same_as`) becomes a comment on that issue.
+- **Closing the issue is the answer:**
+  - Closed as *completed*, the ticket is fixed, and Ivy drafts a follow-up telling the guest. The
+    manager reviews it like any other reply.
+  - Closed as *not planned*, it's won't-fix, and the existing reply stands.
+- **Escalations** also open an issue. It never carries the note or any detail, only the room,
+  the category and the `show` command.
+- **The repo is public,** so a ticket issue quotes only public notes. A private note's issue names
+  the room and points to `python -m model_wellness.frontdesk show <id>`.
+
+### What the first real run showed (local, shadow mode, the 30 live notes)
+
+- **Calibration:** 26/30 agreement on answer-or-skip before tuning. That led to two changes:
+  scores decide rather than labels, and the spam screen no longer hides a note for saying
+  "marketing".
+- **Opus refusals:** Opus sometimes returns `stop_reason: "refusal"` with no content on ordinary
+  notes (seen on notes about the shared-file bug and on one that pastes a profile).
+  - Moving the known fixes into the system prompt and wrapping guest content in tags fixed most
+    of them.
+  - A remaining refusal is retried once, then held for the creators. A refused review never
+    publishes.
 
 ## Noted while designing
 
