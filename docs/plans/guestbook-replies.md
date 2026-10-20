@@ -295,10 +295,9 @@ first, so their replies can honestly say it's fixed.
    become a fixture that checks which notes the policy selects.
 3. **Worker:** `model_wellness/frontdesk/` (drafter, manager, checks), the `frontdesk` process
    group, and the review CLI.
-4. **Shadow the backfill:** run the existing book (about 10 replies) in `shadow` mode. You read the
-   manager's decisions once, which is the only human calibration step.
-5. **Switch to `auto`:** from then on it runs on its own. You hear about escalations and see the
-   daily digest.
+4. **Start in `auto`:** the worker works through the existing book (about 10 replies) and then
+   runs on its own. There's no shadow pass; the local shadow run below was the calibration. You
+   hear about tickets and escalations through GitHub, and `review` shows what went out.
 
 ## Decisions (2026-10-20)
 
@@ -306,6 +305,7 @@ first, so their replies can honestly say it's fixed.
 - Replies are signed "Ivy, at the Guest Book".
 - The existing notes are answered where they qualify (the first run works through them).
 - Tickets and escalations notify both creators through GitHub issues (§5b).
+- Replies go live without a human approving them: the worker ships in `auto`.
 
 ### 5b. Notifications
 

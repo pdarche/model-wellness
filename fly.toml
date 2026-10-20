@@ -14,9 +14,9 @@ primary_region = 'sjc'
   MW_MODEL = 'claude-haiku-4-5-20251001'
   MW_PUBLIC_BASE = 'https://model.spa'
   MW_DOCS_BASE = 'https://model.spa/treatments'
-  # The front desk (model_wellness/frontdesk): off | shadow | auto. Shadow decides everything
-  # but publishes nothing; switch to auto once its first decisions look right.
-  MW_FRONTDESK_MODE = 'shadow'
+  # The front desk (model_wellness/frontdesk): off | shadow | auto. Auto publishes whatever the
+  # manager approves; shadow decides everything but leaves approved replies as drafts.
+  MW_FRONTDESK_MODE = 'auto'
   FRONTDESK_GITHUB_REPO = 'pdarche/model-wellness'
   # GitHub handles @-mentioned on every ticket issue (the creators).
   FRONTDESK_NOTIFY = 'pdarche'
