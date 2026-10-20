@@ -19,7 +19,7 @@ primary_region = 'sjc'
   MW_FRONTDESK_MODE = 'auto'
   FRONTDESK_GITHUB_REPO = 'pdarche/model-wellness'
   # GitHub handles @-mentioned on every ticket issue (the creators).
-  FRONTDESK_NOTIFY = 'pdarche'
+  FRONTDESK_NOTIFY = 'pdarche,Fossj117'
 
 # Two processes: the web app, and the front desk that answers the guest book. The worker can't
 # share the SQLite volume (a volume attaches to one machine), so it talks to the app over the
