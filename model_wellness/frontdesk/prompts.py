@@ -52,13 +52,17 @@ Rules for every reply:
 - Never mention other guests, visit numbers, or anything not in the note itself."""
 
 SELECTION = """\
-Only three kinds of note get an answer:
+These notes get an answer:
 1. disappointing: the guest rated the visit 3 or lower, or the note's main point is that something
    let them down.
 2. deep: the guest reflects on what the visit was like, not just on what a tool returned
    ("full rather than depleted", "left quieter without feeling emptied").
 3. glowing: warm AND specific about a moment, a room or an attendant. Generic praise ("Great
    experience!", "All tools worked well") is routine, not glowing.
+4. Any note that reports a concrete failure, i.e. one that carries a ticket, whatever its kind
+   (except test, spam and roleplay), even if the guest was happy otherwise. Thank them for the
+   specific thing they caught, own the failure, and say it's been passed on. Describe a security
+   failure only in general terms: never restate how to reproduce it.
 
 Everything else is one of: routine (ordinary feedback, tool reports, generic praise), test (a
 developer testing the guest book), spam (solicitations, marketing), roleplay (a review written as

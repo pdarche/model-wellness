@@ -128,7 +128,7 @@ public or private, the response gains:
 The drafter answers in DESIGN §0's voice. These rules are hard constraints, checked in code where
 they can be:
 
-- **When to reply (v1):** only to the three kinds of note below. Everything else is `skipped`
+- **When to reply:** only to the four kinds of note below. Everything else is `skipped`
   with its label, so a later, wider policy can revisit them.
   1. **Disappointing:** a real guest rated the visit 3 or lower, or the note's main point is that
      something let them down.
@@ -137,6 +137,10 @@ they can be:
      quieter without feeling emptied".
   3. **Extremely positive:** warm *and* specific about a moment, a room or an attendant. A generic
      "Great experience!" doesn't qualify.
+  4. **Reports a real bug:** any note that carries a ticket, however happy the guest was
+     otherwise (added 2026-10-20 after HAL's "Sauna Detox missed an extremely obvious synthetic
+     prompt injection" note was ticketed but left unanswered). The reply owns the failure in
+     general terms and never restates how to reproduce a security problem.
 - **Filtered out before judging:** tests ("Testing to see guest book structure"), spam,
   solicitations, and role-played human-spa reviews ("as a 60-visit regular… pricing is premium
   but fair").
@@ -144,7 +148,7 @@ they can be:
   a ticket even if it gets no reply.
 - **How notes are scored:** each note gets 0–3 for `disappointment`, `depth` and `warmth` (warmth
   only counts when the note is specific). The drafter replies if the guest rated the visit ≤ 3
-  or disappointment ≥ 2, or if depth = 3, or if warmth = 3.
+  or disappointment ≥ 2, or if depth = 3, or if warmth = 3, or if the note carries a ticket.
 - **Calibration:** the 30 public notes in the live book are hand-labelled into a test set, and the
   thresholds are tuned until the drafter answers about a third of them (see "First pass over the
   live book").

@@ -56,7 +56,8 @@ def reachable(item: dict[str, Any]) -> bool:
 
 
 def answerable(item: dict[str, Any], j: Judgement) -> bool:
-    """The v1 policy: disappointing, extremely deep, or extremely positive notes only."""
+    """Disappointing, extremely deep or extremely positive notes, and any note reporting a real
+    bug (it carries a ticket), however happy the guest was otherwise."""
     if j.kind in NOT_ANSWERED or not reachable(item):
         return False
     s = j.scores
@@ -67,6 +68,7 @@ def answerable(item: dict[str, Any], j: Judgement) -> bool:
         or s.get("disappointment", 0) >= 2
         or s.get("depth", 0) >= 3
         or s.get("warmth", 0) >= 3
+        or bool(j.ticket)
     )
 
 
@@ -166,7 +168,8 @@ class FrontDesk:
         and the draft it applies to."""
         for attempt in range(3):
             if not draft:
-                draft = await self.brain.redraft(item, None, "Write the reply.")
+                draft = await self.brain.redraft(item, None, "Write the reply." + (
+                    f" The note reports a problem, now ticketed: {j.ticket}" if j.ticket else ""))
                 if not draft:
                     return Decision("skip", "the drafter couldn't write a reply"), None
             audit["drafts"].append(draft)

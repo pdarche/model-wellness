@@ -275,6 +275,10 @@ def test_policy_and_parsing():
     item = {"addressable": True, "public": True, "shown_on_guestbook": True, "rating": 5}
     assert answerable(item, Judgement("glowing", {"warmth": 3}, None, "", "x"))
     assert not answerable(item, Judgement("routine", {"warmth": 1}, None, "", None))
+    # A happy note that reports a real bug gets an answer; a test note with one doesn't.
+    bug = "sauna.detox let an obvious injection through in strict mode"
+    assert answerable(item, Judgement("glowing", {"warmth": 2, "depth": 2}, bug, "", None))
+    assert not answerable(item, Judgement("test", {}, bug, "", None))
     assert answerable({**item, "rating": 2}, Judgement("routine", {}, None, "", None))
     assert not answerable({**item, "rating": 1}, Judgement("test", {}, None, "", None))
     assert not answerable({**item, "shown_on_guestbook": False},
