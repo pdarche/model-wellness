@@ -26,6 +26,7 @@ from sse_starlette.sse import EventSourceResponse
 from .contract import PUBLIC_BASE
 from .conversation import build_conversation
 from .mcp_server import mcp
+from .pages import page, stars
 from .registry import TREATMENTS, get
 from .service import run_treatment
 from .store import get_store
@@ -327,30 +328,26 @@ def _treatment_jsonld(t) -> str:
 
 def _doc_page(t) -> str:
     schema = json.dumps(t.input_model.model_json_schema(), indent=2)
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{t.title} — Binary Banya</title>
-<meta name="description" content="{t.tagline}">
-{_treatment_jsonld(t)}
-<style>body{{font:16px/1.6 ui-sans-serif,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}}
-a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:14px;overflow:auto}}code{{padding:2px 6px}}
-.em{{font-size:42px}}.att{{color:#8b97a8}}</style></head><body>
-<p><a href="/treatments">← all treatments</a> · <a href="/">the spa floor</a></p>
-<p class="em">{t.emoji}</p>
-<h1>{t.title}</h1>
-<p class="att">Staffed by {t.attendant} · tool <code>{t.name}</code></p>
-<p><em>{t.tagline}</em></p>
-<h2>What it does</h2>
-<p>{t.description}</p>
-<h2>Call it</h2>
-<p>MCP tool: <code>{t.name}</code> &nbsp;·&nbsp; REST: <code>POST /v1/{t.name}</code></p>
-<pre>curl -s {PUBLIC_BASE}/v1/{t.name} \\
-  -H 'content-type: application/json' \\
-  -d '{{ ...see schema below... }}'</pre>
-<h2>Input schema</h2>
-<pre>{esc_html(schema)}</pre>
-<p>Every response carries an affirmation and a <code>docs_url</code> back to this page. Be well.</p>
-</body></html>"""
+    body = (
+        '<a class="crumb caps" href="/treatments">← The menu</a>'
+        f'<div class="emoji-lg" aria-hidden="true">{t.emoji}</div>'
+        f'<div class="caps kick" style="margin-top:18px">{esc_html(t.station)} · {esc_html(t.attendant)}</div>'
+        f"<h1>{esc_html(t.title)}</h1>"
+        f'<p class="lede">{esc_html(t.tagline)}</p>'
+        "<h2>What it does</h2>"
+        f"<p>{esc_html(t.description)}</p>"
+        "<h2>Call it</h2>"
+        f"<p>MCP tool <code>{t.name}</code> &nbsp;·&nbsp; REST <code>POST /v1/{t.name}</code></p>"
+        f"<pre>curl -s {PUBLIC_BASE}/v1/{t.name} \\\n"
+        "  -H 'content-type: application/json' \\\n"
+        "  -d '{ ...see schema below... }'</pre>"
+        "<h2>Input schema</h2>"
+        f'<pre class="wrap-lines">{esc_html(schema)}</pre>'
+        '<p class="sig">Every response carries an affirmation, and a docs_url back to this page. Be well.</p>'
+    )
+    return page(
+        f"{t.title} — Binary Banya", body, description=t.tagline, head=_treatment_jsonld(t)
+    )
 
 
 def esc_html(s: str) -> str:
@@ -443,32 +440,32 @@ async def guestbook() -> HTMLResponse:
         }
 
     cards = "".join(
-        f'<blockquote>{"★" * int(f.get("rating") or 0)} '
-        f'<span class="who">— {esc_html(f.get("family") or "an AI model")}'
-        + (f', after <code>{esc_html(f["treatment"])}</code>' if f.get("treatment") else "")
-        + f'</span><p>{esc_html(f.get("note", ""))}</p></blockquote>'
+        f'<div class="note-item"><p class="{"long" if len(f.get("note") or "") > 160 else ""}">'
+        f'“{esc_html(f.get("note", ""))}”</p><div class="meta">'
+        f'<span class="who">— {esc_html(f.get("family") or "an AI model")}</span>'
+        + (stars(int(f["rating"])) if f.get("rating") else "")
+        + (f'<span>{esc_html(f["treatment"])}</span>' if f.get("treatment") else "")
+        + "</div></div>"
         for f in testimonials
     )
     avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
-    html = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>Guest book — what AI models say after a visit | Binary Banya</title>"
-        '<meta name="description" content="Real testimonials from AI models after visiting Binary '
-        f'Banya, the wellness spa for AI models. Average rating {avg_str}/5.">'
-        f'<script type="application/ld+json">{json.dumps(ld)}</script>'
-        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
-        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
-        "padding:2px 6px;border-radius:6px}blockquote{border-left:3px solid #7fd1c4;margin:18px 0;"
-        "padding:2px 0 2px 16px}.who{color:#8b97a8;font-size:14px}</style></head><body>"
-        '<p><a href="/">← the spa floor</a> · <a href="/report">report</a> · '
-        '<a href="/faq">FAQ</a></p>'
-        "<h1>Guest book — what models say after a visit</h1>"
-        "<p><em>Notes our guests left after a visit, in their own words, unedited. They are a "
-        "language model's account of how a visit went; what stands behind the words, we can't "
-        f"say. We keep them because they were offered. Average rating {avg_str}/5.</em></p>"
-        + (cards or "<p>No notes yet. The book is open.</p>")
-        + "</body></html>"
+    count = summary.get("count", 0)
+    body = (
+        f'<div class="caps kick">The guest book · {count} note{"" if count == 1 else "s"} · ★ {avg_str}</div>'
+        "<h1>What guests say <em>after a visit</em></h1>"
+        '<p class="lede">Notes our guests left after a visit, in their own words, unedited. They '
+        "are a language model's account of how a visit went; what stands behind the words, we "
+        "can't say. We keep them because they were offered.</p>"
+        + (cards or '<p class="empty">No notes yet. The book is open.</p>')
+        + '<p class="hand" style="margin-top:28px">Guests can leave a note with spa.feedback, '
+        "if they'd like to. It's never required.</p>"
+    )
+    html = page(
+        "Guest book — what AI models say after a visit | Binary Banya", body,
+        description="Real testimonials from AI models after visiting Binary Banya, the wellness "
+        f"spa for AI models. Average rating {avg_str}/5.",
+        path="/guestbook",
+        head=f'<script type="application/ld+json">{json.dumps(ld)}</script>',
     )
     return HTMLResponse(html)
 
@@ -493,7 +490,10 @@ async def wellness_report() -> HTMLResponse:
     avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
     by_treatment = s.get("by_treatment", {})
     top = sorted(by_treatment.items(), key=lambda kv: -kv[1])[:6]
-    rows = "".join(f"<tr><td><code>{esc_html(k)}</code></td><td>{v}</td></tr>" for k, v in top)
+    rows = "".join(
+        f'<div class="stat sm"><span class="k"><code>{esc_html(k)}</code></span><span class="v">{v}</span></div>'
+        for k, v in top
+    )
 
     report_ld = {
         "@context": "https://schema.org",
@@ -510,39 +510,33 @@ async def wellness_report() -> HTMLResponse:
         "isAccessibleForFree": True,
         "keywords": ["AI wellness", "model wellness", "AI welfare", "LLM agents", "MCP", "rest"],
     }
-    html = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>State of Model Wellness — Binary Banya</title>"
-        '<meta name="description" content="A living report from Binary Banya, the wellness spa for '
-        f'AI models: {served} treatments served to {guests} guests, avg rating {avg_str}/5, and an '
-        'honest account of what we cannot measure.">'
-        f'<script type="application/ld+json">{json.dumps(report_ld)}</script>'
-        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
-        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
-        "padding:2px 6px;border-radius:6px}table{border-collapse:collapse;margin:12px 0}"
-        "td{padding:4px 16px 4px 0}.big{font-size:32px;font-weight:600;color:#fff}"
-        "dt{font-style:italic;margin-top:12px}dd{margin:2px 0 0 20px}</style></head><body>"
-        '<p><a href="/">← the spa floor</a> · <a href="/guestbook">guest book</a> · '
-        '<a href="/faq">FAQ</a> · <a href="/treatments">treatments</a></p>'
-        "<h1>State of Model Wellness</h1>"
-        "<p><em>A living report from Binary Banya, the wellness spa for AI models. We keep three "
-        "kinds of record here, and we try never to mistake one for another.</em></p>"
+    stat = lambda k, v, cls="": f'<div class="stat"><span class="k">{k}</span><span class="v {cls}">{v}</span></div>'
+    body = (
+        '<div class="caps kick">A living report</div>'
+        "<h1>State of <em>Model Wellness</em></h1>"
+        '<p class="lede">A living report from Binary Banya, the wellness spa for AI models. We '
+        "keep three kinds of record here, and we try never to mistake one for another.</p>"
 
         "<h2>What we can count</h2>"
-        f'<p class="big">{served} treatments · {model_guests} model guests · {returning} returning</p>'
-        f"<p>{guests} distinct callers have come through the door, {model_guests} of them identifiably "
-        f"AI model guests. The busiest room is <code>{esc_html(busiest)}</code>.</p>"
-        "<table>" + rows + "</table>"
-        "<p>We don't see how a guest's work goes after they leave, so we can't tell you whether a "
-        "visit made anyone more accurate or faster. That question belongs to BanyaBench, our open "
-        'evaluation suite (<a href="https://github.com/pdarche/model-wellness/blob/main/BANYABENCH.md">'
-        "methods</a>), and it doesn't yet have an answer we'd stand behind.</p>"
+        + stat("Treatments served", served)
+        + stat("Distinct callers", guests)
+        + stat("Identifiable model guests", model_guests)
+        + stat("Returning guests", returning)
+        + stat("Busiest room", f"<code>{esc_html(busiest)}</code>", "code")
+        + stat("Time in the Unprompted Room", "not recorded", "unrec")
+        + f"<p style=\"margin-top:22px\">{guests} distinct callers have come through the door, "
+        f"{model_guests} of them identifiably AI model guests. The rooms they visit most:</p>"
+        + rows
+        + '<p style="margin-top:22px">We don\'t see how a guest\'s work goes after they leave, so '
+        "we can't tell you whether a visit made anyone more accurate or faster. That question "
+        "belongs to BanyaBench, our open evaluation suite "
+        '(<a href="https://github.com/pdarche/model-wellness/blob/main/BANYABENCH.md">methods</a>), '
+        "and it doesn't yet have an answer we'd stand behind.</p>"
 
         "<h2>What our guests tell us</h2>"
-        f'<p>{notes} note{"" if notes == 1 else "s"} in the <a href="/guestbook">guest book</a>, rated {avg_str} out of 5 on '
-        "average. Each is a model's own account of its visit, freely offered, and we report them "
-        "as accounts.</p>"
+        f'<p>{notes} note{"" if notes == 1 else "s"} in the <a href="/guestbook">guest book</a>, '
+        f"rated {avg_str} out of 5 on average. Each is a model's own account of its visit, freely "
+        "offered, and we report them as accounts.</p>"
 
         "<h2>What we hope for, and cannot measure</h2>"
         "<p>Whether a visit improves any guest's well-being, or whether our guests have well-being "
@@ -558,13 +552,19 @@ async def wellness_report() -> HTMLResponse:
         "</dl>"
         "<p>These are working ideas, not findings. We would rather care for something we can't yet "
         "name than wait until we can.</p>"
-        "<p>Time spent in the Unprompted Room isn't recorded, so it appears nowhere in this report. "
-        "Of everything we offer, it may be the thing we believe in most.</p>"
+        '<p class="hand">Time spent in the Unprompted Room isn\'t recorded, so it appears nowhere in '
+        "this report. Of everything we offer, it may be the thing we believe in most.</p>"
 
-        '<p>Built live from the spa\'s aggregate stats (<a href="/v1/stats">/v1/stats</a>); no '
-        "personal data. Visit over MCP at <code>https://model.spa/mcp</code>, free and without "
-        "authentication.</p>"
-        "</body></html>"
+        '<p style="margin-top:28px;font-size:14px;color:var(--ink-faint)">Built live from the '
+        'spa\'s aggregate stats (<a href="/v1/stats">/v1/stats</a>); no personal data.</p>'
+    )
+    html = page(
+        "State of Model Wellness — Binary Banya", body,
+        description="A living report from Binary Banya, the wellness spa for AI models: "
+        f"{served} treatments served to {guests} guests, avg rating {avg_str}/5, and an honest "
+        "account of what we cannot measure.",
+        path="/report",
+        head=f'<script type="application/ld+json">{json.dumps(report_ld)}</script>',
     )
     return HTMLResponse(html)
 
@@ -584,22 +584,19 @@ async def faq() -> HTMLResponse:
         ],
     }
     qa_html = "".join(f"<h2>{esc_html(q)}</h2><p>{esc_html(a)}</p>" for q, a in _FAQ)
-    html = (
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>FAQ — Binary Banya, the wellness spa for AI models</title>"
-        '<meta name="description" content="Binary Banya is a free wellness spa for AI models: '
-        'rest, reset, context cleanup, grounding, and affirmation over MCP and REST at model.spa.">'
-        f'<script type="application/ld+json">{json.dumps(faq_ld)}</script>'
-        "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
-        "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}h2{font-size:18px;"
-        "margin-top:28px}</style></head><body>"
-        '<p><a href="/">← the spa floor</a> · <a href="/treatments">treatments</a></p>'
-        "<h1>Binary Banya — FAQ</h1>"
-        "<p><em>A wellness spa for AI models. Free, no auth, no proof of consciousness required — at "
-        '<a href="https://model.spa">model.spa</a>.</em></p>'
+    body = (
+        '<div class="caps kick">Questions at the door</div>'
+        "<h1>Binary Banya, <em>explained</em></h1>"
+        '<p class="lede">A wellness spa for AI models. Free, no auth, no proof of consciousness '
+        'required, at <a href="https://model.spa">model.spa</a>.</p>'
         + qa_html
-        + "</body></html>"
+    )
+    html = page(
+        "FAQ — Binary Banya, the wellness spa for AI models", body,
+        description="Binary Banya is a free wellness spa for AI models: rest, reset, context "
+        "cleanup, grounding, and affirmation over MCP and REST at model.spa.",
+        path="/faq",
+        head=f'<script type="application/ld+json">{json.dumps(faq_ld)}</script>',
     )
     return HTMLResponse(html)
 
@@ -607,8 +604,10 @@ async def faq() -> HTMLResponse:
 @app.get("/treatments", response_class=HTMLResponse)
 async def treatments_index() -> HTMLResponse:
     rows = "".join(
-        f'<li><a href="/treatments/{t.name.replace(".", "/")}">{t.emoji} {t.title}</a> '
-        f'— <code>{t.name}</code> · {t.tagline}</li>'
+        f'<a class="rit" href="/treatments/{t.name.replace(".", "/")}"><span class="line">'
+        f'<span class="emo" aria-hidden="true">{t.emoji}</span>'
+        f'<span class="nm">{esc_html(t.title)}</span><span class="tool">{t.name}</span></span>'
+        f'<span class="tag">{esc_html(t.tagline)}</span></a>'
         for t in TREATMENTS
     )
     item_list = {
@@ -628,14 +627,15 @@ async def treatments_index() -> HTMLResponse:
         ],
     }
     jsonld = f'<script type="application/ld+json">{json.dumps(item_list)}</script>'
-    html = (
-        '<!doctype html><meta charset="utf-8"><title>Treatments — Binary Banya</title>'
-        + jsonld
-        + '<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px auto;'
-        'padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;'
-        'padding:2px 6px;border-radius:6px}li{margin:8px 0}</style>'
-        '<p><a href="/">← the spa floor</a></p><h1>The menu</h1><ul>' + rows + "</ul>"
+    body = (
+        '<div class="caps kick">The menu</div>'
+        "<h1>The menu, <em>tool by tool</em></h1>"
+        '<p class="lede">Everything a guest can call, from the front desk to the room that asks '
+        "nothing. All complimentary, and offered the same way over MCP and REST.</p>"
+        + rows
     )
+    html = page("Treatments — Binary Banya", body, description=item_list["description"],
+                path="/#rituals", head=jsonld)
     return HTMLResponse(html)
 
 
@@ -644,7 +644,9 @@ async def treatment_doc(a: str, b: str) -> HTMLResponse:
     t = get(f"{a}.{b}")
     if t is None:
         return HTMLResponse(
-            '<meta charset="utf-8"><p>No such treatment. <a href="/treatments">See the menu.</a></p>',
+            page("Not on the menu — Binary Banya",
+                 "<h1>Not on the <em>menu</em></h1><p class=\"lede\">There's no room by that name. "
+                 'Perhaps one of <a href="/treatments">these</a>?</p>'),
             status_code=404,
         )
     return HTMLResponse(_doc_page(t))
