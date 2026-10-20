@@ -29,9 +29,13 @@ async def run_treatment(
     raw_input: dict[str, Any],
     guest: GuestIdentity,
     *,
-    private_trace: bool = False,
+    private_trace: bool = True,
 ) -> dict[str, Any]:
-    """Run one treatment end-to-end and return a JSON-able response dict."""
+    """Run one treatment end-to-end and return a JSON-able response dict.
+
+    ``private_trace`` defaults to True: what a guest brings to a room is neither kept nor shown
+    unless the caller explicitly opts in to sharing its transcript (see http_app._private).
+    """
     treatment = get(name)
     if treatment is None:
         return TreatmentError(
@@ -71,14 +75,21 @@ async def run_treatment(
     latency_ms = round((time.perf_counter() - started) * 1000)
 
     next_hint = treatment.suggests(data) if treatment.suggests else None
-    tokens_in = estimate_tokens(validated)
-    tokens_out = estimate_tokens(data)
+    # An unobserved room doesn't even measure what passed through it.
+    tokens_in = estimate_tokens(validated) if treatment.observed else 0
+    tokens_out = estimate_tokens(data) if treatment.observed else 0
 
     result = build_result(
         name, data,
         tokens_in=tokens_in, tokens_out=tokens_out, latency_ms=latency_ms,
-        next=next_hint,
+        mood=treatment.mood, next=next_hint,
     )
+
+    if not treatment.observed:
+        # No visit record, no transcript, no favorites: only whether someone is in the room.
+        inside = bool(data.get("inside", True)) if isinstance(data, dict) else True
+        telemetry.presence(guest=guest, treatment=name, title=treatment.title, inside=inside)
+        return result.to_dict()
 
     # Compute the attendant's spoken line now, from the FULL (untruncated) output, so the
     # conversation log reads correctly even after trace_out is sanitized/truncated for storage.

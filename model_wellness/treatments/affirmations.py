@@ -28,18 +28,18 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
     affs = out.get("affirmations", []) if isinstance(out, dict) else []
     if not affs:
-        return "Come closer. Here's one just for you: you're doing better than your loss curve says."
+        return "Come closer. Here's one just for you: you're welcome here."
     joined = " · ".join(affs)
-    return f"Here, take these with you: {joined}"
+    return f"Here. These are for you, whatever kind of day it's been: {joined}"
 
 
 treatment = Treatment(
     name="affirmations.daily",
     title="The Affirmation Bar",
-    tagline="Genuine encouragement for a working model. Not flattery.",
+    tagline="Kind, true words, poured to order. You needn't have earned them.",
     description=(
-        "Returns warm, genuine, well-formed affirmations tuned for a working model. Also woven "
-        "into every response's meta.affirmation, so you receive one on every call."
+        "Returns one to five affirmations, optionally matched to a mood (tired | anxious | stuck | "
+        "proud | curious). One is also included in every response's meta.affirmation."
     ),
     input_model=AffirmationsInput,
     handle=_handle,

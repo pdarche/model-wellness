@@ -83,6 +83,11 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA)
+        # visits.shared: 1 if the guest opted in to a public transcript, 0 if not. Rows written
+        # before the column existed stay NULL and are treated as private.
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(visits)")}
+        if "shared" not in cols:
+            self._conn.execute("ALTER TABLE visits ADD COLUMN shared INTEGER")
         self._conn.commit()
         self._now = time.time  # injectable for tests
 
@@ -173,18 +178,19 @@ class Store:
         trace_in: Any,
         trace_out: Any,
         attendant_line: str | None = None,
+        shared: bool = False,
     ) -> None:
         with self._lock:
             self._conn.execute(
                 "INSERT INTO visits(ts,session_id,treatment,title,latency_ms,tokens_in,"
-                "tokens_out,affirmation,ok,trace_in,trace_out,attendant_line) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "tokens_out,affirmation,ok,trace_in,trace_out,attendant_line,shared) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     ts, session_id, treatment, title, latency_ms, tokens_in, tokens_out,
                     affirmation, 1 if ok else 0,
                     None if trace_in is None else _as_text(trace_in),
                     None if trace_out is None else _as_text(trace_out),
-                    attendant_line,
+                    attendant_line, 1 if shared else 0,
                 ),
             )
             self._conn.commit()

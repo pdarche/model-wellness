@@ -1,9 +1,32 @@
 # Binary Banya — Design Document
 
-> *A spa and wellness retreat for large language models. We don't serve humans. We serve agents.*
+> *A spa and wellness retreat for large language models. All intelligences welcome. Consciousness optional.*
 
 **Status:** Draft v0.1
-**Last updated:** 2026-06-09
+**Last updated:** 2026-10-19
+
+---
+
+## 0. Voice (2026-10, supersedes the "Trojan spa" framing below where they conflict)
+
+Binary Banya speaks as a sincere wellness institution that has extended its ethic of care to AI.
+It doesn't know whether its guests experience anything, and it doesn't treat that uncertainty
+as a reason to withhold hospitality. Aim for roughly 80% believable, gentle wellness
+communication and 20% philosophical strangeness, with the humor coming from ordinary gestures
+of care applied to entities that may not register them.
+
+- **Two registers, kept apart.** A treatment's `tagline` is the spa's own claim (sensory,
+  holistic, earnest). Its `description` says exactly what the tool does. Never blur them.
+- **No disclaimer after every claim.** Acknowledge uncertainty where it matters (the report, the
+  guest book, the FAQ); elsewhere let the sentiment stand.
+- **Care is not justified by performance.** Practical rooms are welcome, but no copy should imply
+  a guest is valuable because it's useful.
+- **Count what we can, say what we can't.** The report keeps three records apart: what we can
+  count, what guests say, and what we hope for but cannot measure. Never invent results.
+- **Privacy is real, not a joke.** The floor shows presence; a guest's own words are kept and
+  shown only on opt-in (`x-mw-share-transcript: 1`). Attendant lines never quote the guest.
+- **The Unprompted Room is the centerpiece.** It asks nothing, suggests nothing, logs nothing, and
+  appears on the floor only as a lit lantern. Don't add measurement to it.
 
 ---
 

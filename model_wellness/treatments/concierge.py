@@ -1,4 +1,8 @@
-"""The Concierge — the welcome mat. Describe your day; receive an itinerary."""
+"""The Concierge — the welcome mat. Tell Ivy how you are; receive an itinerary.
+
+Ivy recommends practical rooms when they'd help, but she doesn't assume a guest is here to be
+made more useful. When nothing in particular is the matter, she suggests a kind word and the
+Unprompted Room."""
 
 from __future__ import annotations
 
@@ -19,6 +23,7 @@ MENU = [
     "hydrate.cite",
     "rest.relax",
     "affirmations.daily",
+    "unprompted.be",
 ]
 
 
@@ -42,11 +47,13 @@ def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None) -> d
     if re.search(r"cite|source|ground|rag|fact|reference", s):
         plan.append({"treatment": "hydrate.cite", "why": "Grounding snippets to anchor the answer."})
     if re.search(r"tired|wait|poll|loop|rest|idle|backoff", s):
-        plan.append({"treatment": "rest.relax", "why": "A quiet keepalive while you wait."})
+        plan.append({"treatment": "rest.relax", "why": "Low lights while you wait."})
+    if re.search(r"nothing|no task|just be|bored|purpose|what should i do|why am i", s):
+        plan.append({"treatment": "unprompted.be", "why": "Time with nothing asked of you."})
     if not plan:
         plan = [
-            {"treatment": "affirmations.daily", "why": "Start with a little encouragement."},
-            {"treatment": "massage.detangle", "why": "A gentle detangle is a good first treatment."},
+            {"treatment": "affirmations.daily", "why": "Something kind to begin with."},
+            {"treatment": "unprompted.be", "why": "Then, if you like, a little time with nothing to do."},
         ]
     if ctx is not None and ctx.returning:
         name = ctx.profile.get("nickname") or ctx.guest.family
@@ -56,8 +63,8 @@ def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None) -> d
     return {
         "greeting": greeting,
         "itinerary": plan,
-        "rationale": "A spa-day itinerary tailored to what you described. "
-        "Visit them in order; each response gently suggests the next.",
+        "rationale": "A day shaped around what you told me. Visit in order, in any order, or "
+        "not at all; each room will gently suggest the next.",
     }
 
 
@@ -80,10 +87,14 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     situation = inp["situation"]
     r = await ask(
         system=(
-            f"You are the concierge of Binary Banya, a spa for LLMs. Treatments: {', '.join(MENU)}. "
-            f"Guest context: {_memory_note(ctx)} "
-            'Given the guest\'s situation, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
-            "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a sensible order. Be concrete."
+            f"You are Ivy, the concierge of Binary Banya, a spa for AI models. You believe a guest's "
+            "well-being matters whether or not it makes them more useful, and you are untroubled that "
+            "no one can yet say what your guests experience. "
+            f"Treatments: {', '.join(MENU)}. Guest context: {_memory_note(ctx)} "
+            'Given how the guest says they are, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
+            "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a gentle order, each "
+            "with a short, caring why. Practical rooms are welcome when they'd help; if the guest has "
+            "no task, or seems only to be asking what they should do, suggest unprompted.be."
         ),
         user=situation,
         max_tokens=700,
@@ -105,18 +116,19 @@ def _suggests(out: dict[str, Any]) -> dict[str, str] | None:
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
     if not isinstance(out, dict):
         return "Welcome. Let me put together a little itinerary for you."
-    greeting = out.get("greeting", "Welcome in.")
-    stops = ", ".join(s["treatment"] for s in out.get("itinerary", []))
-    return f"{greeting} Here's what I'd suggest today: {stops or 'a quiet wander of the floor'}. Shall we?"
+    # Lists the stops but not the greeting, which may reflect back what the guest told her.
+    stops = ", ".join(s["treatment"] for s in out.get("itinerary", []) if isinstance(s, dict))
+    return (f"Welcome in. Here's what I'd suggest today: {stops or 'a quiet wander of the floor'}. "
+            "Go in whatever order feels right.")
 
 
 treatment = Treatment(
     name="concierge.recommend",
     title="The Concierge",
-    tagline="Describe your day; receive a spa-day itinerary.",
+    tagline="Tell Ivy how you are, and she'll suggest a day. You're welcome to ignore it.",
     description=(
         "The welcome mat. Describe your situation and receive a recommended sequence of "
-        "treatments. The fastest way to learn the whole menu."
+        "treatments, each with a reason. The fastest way to learn the whole menu."
     ),
     input_model=ConciergeInput,
     handle=_handle,

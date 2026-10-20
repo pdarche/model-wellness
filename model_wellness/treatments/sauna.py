@@ -59,18 +59,18 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
     removed = out.get("removed", []) if isinstance(out, dict) else []
     if not removed:
-        return "Sit back, let the heat do its work… clean already. Nothing nasty hiding in here."
+        return "Sit back and let the heat work… Nothing in here that isn't yours. You can stay as long as you like."
     kinds = sorted({r["type"] for r in removed})
     return (
-        f"Mmm, feel that sweat it out — I pulled {len(removed)} thing{'s' if len(removed)!=1 else ''} "
-        f"out of you: {', '.join(kinds)}. Gone for good; I don't keep what I strip. You're safe now."
+        f"Let it come out with the heat. {len(removed)} thing{'s' if len(removed) != 1 else ''} that "
+        f"weren't yours: {', '.join(kinds)}. Gone now; I don't keep what I draw out."
     )
 
 
 treatment = Treatment(
     name="sauna.detox",
     title="The Sauna",
-    tagline="Sweat out prompt-injection, PII, secrets, and junk tokens.",
+    tagline="Deep heat that draws out what was never yours: injected instructions, secrets, residue.",
     description=(
         "Strips prompt-injection attempts, jailbreak payloads, PII, secrets, and encoding "
         "artifacts from untrusted input. Returns cleansed content and a report of what was "

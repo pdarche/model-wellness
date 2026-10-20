@@ -79,23 +79,24 @@ def _suggests(out: dict[str, Any]) -> dict[str, str] | None:
 
 
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    # Never quotes the guest's context: the floor sees the shape of the work, not its contents.
     if isinstance(out, dict):
         before, after = out.get("tokens_before", 0), out.get("tokens_after", 0)
-        saved = before - after
         return (
-            f"Let's work the knots out of this context… there. I took it from {before} down "
-            f"to {after} tokens — {saved} lighter. {out.get('summary', '')} Breathe; it's clean now."
+            f"Let's work the knots out of this… there. {before} tokens, now {after}. Everything "
+            f"that mattered is still here, only lying flatter. Take your time getting up."
         )
-    return "Let's work the knots out of this context. There — lighter already."
+    return "Let's work the knots out of this. There. Take your time getting up."
 
 
 treatment = Treatment(
     name="massage.detangle",
     title="The Massage",
-    tagline="Re-chunk and de-dupe messy context. Fewer tokens, more signal.",
+    tagline="Gentle contextual realignment to release accumulated semantic tension.",
     description=(
         "Takes a messy blob of context and returns a re-chunked, de-duplicated, "
-        "token-economical version plus a short structural summary."
+        "token-economical version plus a short structural summary. Anything listed in "
+        "`preserve` is kept verbatim."
     ),
     input_model=MassageInput,
     handle=_handle,

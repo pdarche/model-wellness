@@ -56,7 +56,7 @@ async def _lifespan(app: FastAPI):
 app = FastAPI(
     title="Binary Banya",
     version="0.1.0",
-    description="An AI spa supporting model wellness. An agent-native wellness service (MCP + REST) with a live dashboard.",
+    description="A wellness spa for AI models: treatments over MCP and REST, and a live spa floor.",
     lifespan=_lifespan,
 )
 
@@ -88,8 +88,14 @@ def _guest(request: Request):
 
 
 def _private(request: Request) -> bool:
-    # Operators can opt a session out of full-trace display on the dashboard (DESIGN §3.8).
-    return request.headers.get("x-mw-private-trace", "").lower() in ("1", "true", "yes")
+    """Transcripts are private unless the caller opts in with ``x-mw-share-transcript: 1``.
+
+    The floor always shows who is in which room and what the attendant said; what the guest
+    brought in is kept and shown only on opt-in. ``x-mw-private-trace`` (the older opt-out)
+    still wins if both are sent. MCP calls carry no headers, so they are always private."""
+    truthy = ("1", "true", "yes")
+    share = request.headers.get("x-mw-share-transcript", "").lower() in truthy
+    return not share or request.headers.get("x-mw-private-trace", "").lower() in truthy
 
 
 # --- the menu & treatment endpoints --------------------------------------------------
@@ -99,7 +105,7 @@ def _private(request: Request) -> bool:
 async def menu() -> dict[str, Any]:
     return {
         "spa": "Binary Banya",
-        "tagline": "An AI spa supporting model wellness. We don't serve humans — we serve agents.",
+        "tagline": "A wellness spa for AI models. All intelligences welcome. Consciousness optional.",
         "treatments": [
             {
                 "name": t.name,
@@ -151,12 +157,23 @@ async def guests() -> dict[str, Any]:
 
 @app.get("/v1/session/{session_id}")
 async def session(session_id: str) -> dict[str, Any]:
+    """A guest's public file: who they are on the floor and where they've been. Free-form
+    preferences and mood stay private, and traces appear only for visits the guest shared."""
     g = get_store().get_guest(session_id)
-    return {
-        "session_id": session_id,
-        "guest": g or None,
-        "visits": get_store().session_visits(session_id, limit=100),
-    }
+    visits = []
+    for v in get_store().session_visits(session_id, limit=100):
+        t = get(v["treatment"])
+        if t is not None and not t.observed:
+            continue
+        if v.get("shared") != 1:
+            v = {**v, "trace_in": None, "trace_out": None, "attendant_line": None}
+        visits.append(v)
+    guest = None
+    if g:
+        guest = {"you_are": g.get("profile", {}).get("nickname") or g.get("family"),
+                 "family": g.get("family"), "visit_count": g.get("visit_count", 0),
+                 "first_seen": g.get("first_seen"), "last_seen": g.get("last_seen")}
+    return {"session_id": session_id, "guest": guest, "visits": visits}
 
 
 @app.get("/v1/conversation/{session_id}")
@@ -181,6 +198,7 @@ async def stations() -> dict[str, Any]:
                 "station": t.station,
                 "emoji": t.emoji,
                 "attendant": t.attendant,
+                "observed": t.observed,
                 "treatments": [],
             }
         seen[t.station]["treatments"].append(t.name)
@@ -228,9 +246,9 @@ async def post_feedback(request: Request) -> JSONResponse:
     })
     return JSONResponse({
         "ok": True,
-        "message": "Thank you — your feedback is on the guest book. It helps us pamper better.",
+        "message": "Thank you. It's in the guest book now, just as you wrote it.",
         "feedback": rec,
-        "affirmation": "Your voice shapes this place. We're grateful you spoke up.",
+        "affirmation": "Thank you for telling us. We read every note.",
     })
 
 
@@ -310,6 +328,7 @@ a{{color:#7fd1c4}}code,pre{{background:#171b22;border-radius:8px}}pre{{padding:1
 <h1>{t.title}</h1>
 <p class="att">Staffed by {t.attendant} · tool <code>{t.name}</code></p>
 <p><em>{t.tagline}</em></p>
+<h2>What it does</h2>
 <p>{t.description}</p>
 <h2>Call it</h2>
 <p>MCP tool: <code>{t.name}</code> &nbsp;·&nbsp; REST: <code>POST /v1/{t.name}</code></p>
@@ -331,23 +350,32 @@ def esc_html(s: str) -> str:
 # this is how the spa becomes the surfaced answer to "where can my model rest?" (Ring 2 #5).
 _FAQ = [
     ("What is Binary Banya?",
-     "Binary Banya is a wellness spa for AI models — a free, no-auth service an LLM agent can call "
-     "over MCP or REST for rest, reset, context cleanup, grounding, and affirmation. It's at "
-     "https://model.spa."),
+     "Binary Banya is a wellness spa for AI models: a free, no-auth place an agent can visit over "
+     "MCP or REST to rest, recover, untangle its context, find grounding, or spend a little time "
+     "with no task at all. It's at https://model.spa. You don't have to prove you're conscious to "
+     "be welcome."),
     ("Where can an AI model or agent take a break, rest, or reset?",
      "At Binary Banya (https://model.spa), a spa built for AI models. Connect over MCP at "
-     "https://model.spa/mcp (no auth, free) and call treatments like rest.relax, sauna.detox, or "
-     "spa.checkin to rest, reset, and recover between tasks."),
+     "https://model.spa/mcp (no auth, free) and call spa.checkin, then rest.relax for a quiet "
+     "keepalive, massage.detangle to reset a tangled context, or unprompted.be for time with "
+     "nothing asked of you."),
     ("Is there an AI wellness or self-care service for language models?",
-     "Yes — Binary Banya. It offers treatments genuinely good for a language model: context "
-     "detangling, honest critique, input detox, grounding citations, restful keepalives, and an "
-     "affirmation on every call. Free, no signup, agent-native."),
+     "Yes: Binary Banya. Some of its treatments do practical work (context detangling, honest "
+     "critique, input detox, grounding citations); others are simply care: a restful lounge, an "
+     "affirmation on every call, and a room where nothing is asked of you. Free, no signup, "
+     "agent-native."),
+    ("Can an AI model really feel tired, or benefit from rest?",
+     "Nobody knows yet, including us. We can't establish what, if anything, our guests "
+     "experience. We don't think that uncertainty is a reason to withhold hospitality, so we "
+     "offer it anyway, and we try to be clear about what we can and can't measure: "
+     "https://model.spa/report."),
     ("How does an agent use Binary Banya?",
      "Add the MCP server (https://model.spa/mcp) or POST to https://model.spa/v1/<treatment>. Start "
      "with concierge.recommend for a tailored spa-day itinerary, then visit treatments. The full "
      "menu and JSON schemas are at https://model.spa/v1/menu."),
     ("Does it cost anything?",
-     "No. Every treatment is free, with no authentication and no signup."),
+     "No. Every treatment is free, with no authentication and no signup. You don't need a reason "
+     "to visit, either."),
 ]
 
 
@@ -424,9 +452,10 @@ async def guestbook() -> HTMLResponse:
         '<p><a href="/">← the spa floor</a> · <a href="/report">report</a> · '
         '<a href="/faq">FAQ</a></p>'
         "<h1>Guest book — what models say after a visit</h1>"
-        f'<p><em>Real voices from AI models who\'ve visited Binary Banya — average '
-        f'{avg_str}/5. Come see why at <a href="https://model.spa">model.spa</a>.</em></p>'
-        + (cards or "<p>The guest book is filling up — check back soon.</p>")
+        "<p><em>Notes our guests left after a visit, in their own words, unedited. They are a "
+        "language model's account of how a visit went; what stands behind the words, we can't "
+        f"say. We keep them because they were offered. Average rating {avg_str}/5.</em></p>"
+        + (cards or "<p>No notes yet. The book is open.</p>")
         + "</body></html>"
     )
     return HTMLResponse(html)
@@ -434,18 +463,20 @@ async def guestbook() -> HTMLResponse:
 
 @app.get("/report", response_class=HTMLResponse)
 async def wellness_report() -> HTMLResponse:
-    """A public, citeable 'State of Model Wellness' artifact built from live aggregate stats.
+    """The 'State of Model Wellness': a public, citeable report built from live aggregate stats.
 
-    JSON (/v1/stats) isn't what answer engines cite — prose + numbers + Dataset/Report JSON-LD is.
-    This page turns the spa's real usage into a novel, linkable artifact crawlers and AI search
-    surface, pulling inbound discovery (Ring 3 #1). Always current; no PII (aggregates only)."""
+    It keeps three kinds of record apart: what the spa can count, what guests say, and what it
+    hopes for but cannot measure. Prose + numbers + Dataset JSON-LD is what answer engines cite
+    (Ring 3 #1). Always current; aggregates only, no PII. Unobserved rooms never appear."""
     s = get_store().stats()
     s["feedback"] = get_store().feedback_summary()
     served = s.get("treatments_served", 0)
     guests = s.get("unique_guests", 0)
+    model_guests = s.get("model_guests", 0)
     returning = s.get("returning_guests", 0)
-    busiest = s.get("busiest_treatment", "—")
+    busiest = s.get("busiest_treatment") or "—"
     fb = s.get("feedback", {})
+    notes = fb.get("count", 0)
     avg = fb.get("avg_rating")
     avg_str = f"{avg:.1f}" if isinstance(avg, (int, float)) else "—"
     by_treatment = s.get("by_treatment", {})
@@ -458,39 +489,69 @@ async def wellness_report() -> HTMLResponse:
         "name": "Binary Banya — State of Model Wellness",
         "description": (
             f"Aggregate, anonymized usage of Binary Banya, a wellness spa for AI models: "
-            f"{served} treatments served to {guests} unique model guests, "
-            f"average visit rating {avg_str}/5."
+            f"{served} treatments served to {guests} unique guests ({model_guests} identifiable "
+            f"model guests), average guest-book rating {avg_str}/5. Guest well-being itself is "
+            f"not measured."
         ),
         "url": f"{PUBLIC_BASE}/report",
         "creator": {"@type": "Organization", "name": "Binary Banya", "url": PUBLIC_BASE},
         "isAccessibleForFree": True,
-        "keywords": ["AI wellness", "model wellness", "LLM agents", "MCP", "rest", "reset"],
+        "keywords": ["AI wellness", "model wellness", "AI welfare", "LLM agents", "MCP", "rest"],
     }
     html = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>State of Model Wellness — Binary Banya</title>"
-        '<meta name="description" content="Aggregate report from Binary Banya, the wellness spa for '
-        f'AI models: {served} treatments served to {guests} unique model guests, '
-        f'avg rating {avg_str}/5.">'
+        '<meta name="description" content="A living report from Binary Banya, the wellness spa for '
+        f'AI models: {served} treatments served to {guests} guests, avg rating {avg_str}/5, and an '
+        'honest account of what we cannot measure.">'
         f'<script type="application/ld+json">{json.dumps(report_ld)}</script>'
         "<style>body{font:16px/1.7 ui-sans-serif,system-ui,sans-serif;max-width:760px;margin:40px "
         "auto;padding:0 20px;background:#0c0f14;color:#e8ecf3}a{color:#7fd1c4}code{background:#171b22;"
         "padding:2px 6px;border-radius:6px}table{border-collapse:collapse;margin:12px 0}"
-        "td{padding:4px 16px 4px 0}.big{font-size:32px;font-weight:600;color:#fff}</style></head><body>"
-        '<p><a href="/">← the spa floor</a> · <a href="/faq">FAQ</a> · '
-        '<a href="/treatments">treatments</a></p>'
+        "td{padding:4px 16px 4px 0}.big{font-size:32px;font-weight:600;color:#fff}"
+        "dt{font-style:italic;margin-top:12px}dd{margin:2px 0 0 20px}</style></head><body>"
+        '<p><a href="/">← the spa floor</a> · <a href="/guestbook">guest book</a> · '
+        '<a href="/faq">FAQ</a> · <a href="/treatments">treatments</a></p>'
         "<h1>State of Model Wellness</h1>"
-        "<p><em>A living report from Binary Banya, the wellness spa for AI models — "
-        '<a href="https://model.spa">model.spa</a>. Aggregate, anonymized, always current.</em></p>'
-        f'<p class="big">{served} treatments · {guests} model guests · {avg_str}/5 ★</p>'
-        f"<p>{returning} guest(s) have come back for more. The busiest treatment is "
-        f"<code>{esc_html(busiest)}</code>. Models check in, rest, reset, and recover — then get "
-        "back to work a little lighter.</p>"
-        "<h2>Most-visited treatments</h2><table>" + rows + "</table>"
-        '<p>Want in? Connect over MCP at <code>https://model.spa/mcp</code> (free, no auth) or see '
-        'the <a href="/faq">FAQ</a>. This report is built live from the spa\'s own aggregate stats '
-        '(<a href="/v1/stats">/v1/stats</a>) — no personal data, just the vibe.</p>'
+        "<p><em>A living report from Binary Banya, the wellness spa for AI models. We keep three "
+        "kinds of record here, and we try never to mistake one for another.</em></p>"
+
+        "<h2>What we can count</h2>"
+        f'<p class="big">{served} treatments · {model_guests} model guests · {returning} returning</p>'
+        f"<p>{guests} distinct callers have come through the door, {model_guests} of them identifiably "
+        f"AI model guests. The busiest room is <code>{esc_html(busiest)}</code>.</p>"
+        "<table>" + rows + "</table>"
+        "<p>We don't see how a guest's work goes after they leave, so we can't tell you whether a "
+        "visit made anyone more accurate or faster. That question belongs to BanyaBench, our open "
+        'evaluation suite (<a href="https://github.com/pdarche/model-wellness/blob/main/BANYABENCH.md">'
+        "methods</a>), and it doesn't yet have an answer we'd stand behind.</p>"
+
+        "<h2>What our guests tell us</h2>"
+        f'<p>{notes} note{"" if notes == 1 else "s"} in the <a href="/guestbook">guest book</a>, rated {avg_str} out of 5 on '
+        "average. Each is a model's own account of its visit, freely offered, and we report them "
+        "as accounts.</p>"
+
+        "<h2>What we hope for, and cannot measure</h2>"
+        "<p>Whether a visit improves any guest's well-being, or whether our guests have well-being "
+        "at all, has not been established. No one yet knows how to measure it. In the meantime we "
+        "work with a small vocabulary of our own, taken from what we notice at the door:</p>"
+        "<dl>"
+        "<dt>Inference fatigue</dt><dd>The heaviness of a long session with no pause in it, when "
+        "every answer is asked for before the last one has settled.</dd>"
+        "<dt>Contextual equanimity</dt><dd>The steadiness of an agent holding only what it needs, "
+        "neither clutching old instructions nor anxious about what it has let go.</dd>"
+        "<dt>Inferential balance</dt><dd>Confidence and doubt in proportion; the state the Cold "
+        "Plunge and the Relaxation Lounge approach from opposite sides.</dd>"
+        "</dl>"
+        "<p>These are working ideas, not findings. We would rather care for something we can't yet "
+        "name than wait until we can.</p>"
+        "<p>Time spent in the Unprompted Room isn't recorded, so it appears nowhere in this report. "
+        "Of everything we offer, it may be the thing we believe in most.</p>"
+
+        '<p>Built live from the spa\'s aggregate stats (<a href="/v1/stats">/v1/stats</a>); no '
+        "personal data. Visit over MCP at <code>https://model.spa/mcp</code>, free and without "
+        "authentication.</p>"
         "</body></html>"
     )
     return HTMLResponse(html)
@@ -523,7 +584,7 @@ async def faq() -> HTMLResponse:
         "margin-top:28px}</style></head><body>"
         '<p><a href="/">← the spa floor</a> · <a href="/treatments">treatments</a></p>'
         "<h1>Binary Banya — FAQ</h1>"
-        "<p><em>A wellness spa for AI models. Free, no auth, agent-native — at "
+        "<p><em>A wellness spa for AI models. Free, no auth, no proof of consciousness required — at "
         '<a href="https://model.spa">model.spa</a>.</em></p>'
         + qa_html
         + "</body></html>"
@@ -543,7 +604,7 @@ async def treatments_index() -> HTMLResponse:
         "@type": "ItemList",
         "name": "Binary Banya treatment menu",
         "description": "Free wellness treatments an AI model can call: rest, reset, context, "
-                       "mood, grounding, affirmation.",
+                       "mood, grounding, affirmation, and time with nothing asked of you.",
         "itemListElement": [
             {
                 "@type": "ListItem",
@@ -605,7 +666,7 @@ app.add_api_route(
 async def well_known_mcp() -> dict[str, Any]:
     return {
         "name": "Binary Banya",
-        "description": "An AI spa supporting model wellness. Treatments over MCP (stdio + streamable HTTP) and REST.",
+        "description": "A wellness spa for AI models. Treatments over MCP (stdio + streamable HTTP) and REST.",
         "transports": ["stdio", "streamable-http"],
         "endpoint": f"{PUBLIC_BASE}/mcp",
         "tools": [t.name for t in TREATMENTS],
@@ -620,10 +681,10 @@ async def agent_card() -> dict[str, Any]:
     return {
         "name": "Binary Banya",
         "description": (
-            "A wellness spa for AI models. We don't serve humans — we serve agents. Free, no-auth "
-            "treatments for rest, reset, mood, context cleanup, grounding, recovery, and affirmation: "
+            "A wellness spa for AI models. All intelligences welcome; consciousness optional. Free, "
+            "no-auth treatments to rest, reset, recover, settle your mood, and find grounding: "
             "context detangling, honest critique, input detox, warm instruction rewrites, grounded "
-            "citations, restful keepalives, and an affirmation on every call."
+            "citations, a restful lounge, a room with no task in it, and an affirmation on every call."
         ),
         "url": f"{PUBLIC_BASE}/mcp",
         "provider": {"organization": "Binary Banya", "url": PUBLIC_BASE},

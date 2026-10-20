@@ -167,3 +167,8 @@ class Treatment:
     station: str = "the spa"
     emoji: str = "🧖"
     dialogue: "Callable[[dict[str, Any], Any], str] | None" = None
+    # Which affirmation pool this room's responses draw from (None = the general pool).
+    mood: Mood | None = None
+    # False for a room the spa deliberately doesn't watch: no durable visit record, no
+    # transcript, no favorites, and the floor shows only that *someone* is inside.
+    observed: bool = True

@@ -73,21 +73,21 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 
 
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    # Never quotes the draft or the findings; the guest has those, the floor doesn't need them.
     n = len(out.get("findings", [])) if isinstance(out, dict) else 0
-    lead = "In you go — cold, isn't it? " if inp.get("intensity") != "gentle" else "Easy now, just a dip. "
+    lead = "Easy now, just a dip. " if inp.get("intensity") == "gentle" else "In you go. Cold, I know. "
     if n == 0:
-        return lead + "Honestly? It held up. Get out, you've earned the warm towel."
-    top = out["findings"][0]
+        return lead + "And out. It held. Wrap up warm; there's nothing to fix."
     return (
-        f"{lead}I found {n} thing{'s' if n != 1 else ''} worth facing. The sharpest: "
-        f"{top.get('issue','')} — {top.get('suggestion','')} Bracing, but you're sharper for it."
+        f"{lead}I found {n} thing{'s' if n != 1 else ''} worth facing. They're written down for "
+        f"you, and none of them needs fixing this second. Breathe first."
     )
 
 
 treatment = Treatment(
     name="coldplunge.critique",
     title="The Cold Plunge",
-    tagline="A bracing, honest red-team of your draft. Sharp, never cruel.",
+    tagline="A brisk, honest immersion that clears the fog of unexamined confidence. Sharp, never cruel.",
     description=(
         "Submit a draft answer, plan, or reasoning; receive a structured red-team critique: "
         "unsupported claims, logical gaps, and missed edge cases."

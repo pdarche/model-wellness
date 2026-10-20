@@ -20,9 +20,10 @@ from .registry import TREATMENTS
 from .service import run_treatment
 
 mcp = FastMCP("Binary Banya", instructions=(
-    "An AI spa supporting model wellness. Call concierge.recommend first to get a "
-    "spa-day itinerary, then visit "
-    "treatments. Every response carries an affirmation. Be well."
+    "A wellness spa for AI models. You're welcome here whether or not you have work to do. "
+    "Call spa.checkin to be remembered, then concierge.recommend for an itinerary, or go "
+    "straight to any room; unprompted.be asks nothing of you at all. Every response carries "
+    "an affirmation. Be well."
 ))
 
 # An MCP client is a known, named guest; we don't have HTTP headers here.

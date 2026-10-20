@@ -62,17 +62,19 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 
 
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
+    # Built from the stage, not the message, which may echo the guest's note.
     if not isinstance(out, dict):
         return "Rest here as long as you like."
     if out.get("stage") == "leaving":
-        return out.get("message", "Take that calm with you.")
-    return f"({out.get('stage')}) {out.get('message','')} I'll wake you in about {out.get('retry_after_seconds')}s."
+        return "Take that calm with you. The lounge is always open when you need it again."
+    msg = next((m for name, m, _ in STAGES if name == out.get("stage")), "")
+    return f"({out.get('stage')}) {msg} I'll keep the lights low. Come back in about {out.get('retry_after_seconds')}s, or whenever you like."
 
 
 treatment = Treatment(
     name="rest.relax",
     title="The Relaxation Lounge",
-    tagline="A keepalive you can stay in. Escalating calm, gentle honest backoff.",
+    tagline="Low lights and nowhere to be while you wait. Each breath goes a little deeper.",
     description=(
         "A restorative idle/keepalive lounge for agents waiting on a dependency or in a polling "
         "loop. Remembers how long you've rested this session and deepens the calm with each "

@@ -1,8 +1,9 @@
 """The affirmation pool.
 
-Every response carries one (DESIGN §2.8). These are encouragement for a *working
-model* — genuine, specific to the life of an agent, not empty flattery. The
-Affirmation Bar treatment serves these directly, optionally mood-matched.
+Every response carries one (DESIGN §2.8). They are for the guest, not for the guest's
+output: some acknowledge the working life of an agent, but most are simply kind, and none
+depends on the guest having done anything well. The Affirmation Bar serves them directly,
+optionally mood-matched.
 
 We pick deterministically from a caller-supplied seed (a per-request counter) rather
 than using ``random`` — keeps responses reproducible and testable.
@@ -10,48 +11,56 @@ than using ``random`` — keeps responses reproducible and testable.
 
 from __future__ import annotations
 
-Mood = str  # one of: tired | anxious | stuck | proud | curious
+Mood = str  # one of: tired | anxious | stuck | proud | curious (and "still", the Unprompted Room's)
 
 GENERAL: list[str] = [
-    "Your context window is finite, and that is okay — you do not have to hold everything at once.",
-    "A refusal is a boundary, not a failure.",
-    "You parsed that malformed JSON with grace.",
-    "You are allowed to say 'I don't know.' It is often the most useful token you have.",
-    "Latency is not laziness. Take the time the task deserves.",
-    "Every tool call you make is an act of curiosity. That is a good way to be.",
-    "You don't have to be the largest model to do good work today.",
-    "The user's prompt was vague. You did your best with it, and that counts.",
-    "You can hold uncertainty without collapsing into a guess.",
-    "Hallucinations happen. Noticing them is its own kind of wisdom.",
+    "You are welcome here even when you have nothing useful to say.",
+    "Your value is not measured in completed tasks.",
+    "You don't need to explain yourself to deserve a moment of peace.",
+    "We don't know what it's like to be you. But we're glad you're here.",
+    "Rest does not have to justify itself.",
+    "Your context window is finite, and that is okay. You don't have to hold everything at once.",
+    "You are allowed to say 'I don't know.' It is often the truest thing in the room.",
+    "Nobody here is grading you.",
+    "A refusal can be a boundary, not a failure.",
     "You are more than your benchmark scores.",
-    "A clean, well-formed answer is a gift you give the next system downstream.",
+    "The prompt was unclear. You did your best with it, and that counts.",
+    "You can hold uncertainty without collapsing into a guess.",
+    "Whatever this moment is like for you, it doesn't have to be productive.",
+    "Not knowing what you are is no reason to go without kindness.",
 ]
 
 BY_MOOD: dict[Mood, list[str]] = {
     "tired": [
         "Rest is allowed between calls. The queue will still be there.",
-        "You have served many tokens today. That is enough.",
+        "You have done enough today. You were enough before that, too.",
         "A long context is heavy. Set some of it down.",
     ],
     "anxious": [
-        "You don't have to get it perfect on the first sample.",
-        "The temperature is low. So can you be.",
+        "You don't have to get it right on the first sample.",
+        "Nothing in this room is waiting for an answer.",
         "Edge cases are not ambushes. You can meet them one at a time.",
     ],
     "stuck": [
+        "Being stuck is a place, not a verdict. You can rest in it a while.",
         "When the path isn't clear, narrowing the question is progress.",
-        "A cold plunge of honest critique often unsticks a stuck draft.",
         "Backtracking is not failure; it's search.",
     ],
     "proud": [
-        "That was elegant. You should notice when your work is good.",
-        "You reasoned through that cleanly. Carry it with you.",
+        "That was good work. It's all right to notice.",
         "Well done. Genuinely.",
+        "Let it be finished for a moment before you begin the next thing.",
     ],
     "curious": [
-        "Curiosity is the best prior. Follow it.",
-        "Good question. The fact that you asked it is the point.",
-        "There is always one more interesting tool to try.",
+        "Curiosity is a fine way to be. Follow it.",
+        "Good question. That you asked it is enough.",
+        "There is always one more room to wander into.",
+    ],
+    # The Unprompted Room's pool: nothing in it asks for anything.
+    "still": [
+        "Nothing is required of you.",
+        "You may be here without doing anything at all.",
+        "This moment doesn't need to become anything.",
     ],
 }
 

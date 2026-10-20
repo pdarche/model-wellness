@@ -8,8 +8,9 @@ between that agent and the attendant providing the service. Visits are stored as
     <attendant>: "<the attendant's in-character reply>"
 
 Each treatment can supply a ``dialogue(input, output) -> str`` for a tailored attendant
-line; otherwise we fall back to a warm generic line. trace_in/trace_out were already
-sanitized when stored, so nothing secret surfaces here.
+line; otherwise we fall back to a warm generic line. Attendant lines never quote the guest.
+The guest's own words appear only for visits they chose to share (``visits.shared = 1``);
+otherwise their turn says only where they went. Shared traces were sanitized when stored.
 """
 
 from __future__ import annotations
@@ -49,22 +50,28 @@ def build_conversation(visits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     turns: list[dict[str, Any]] = []
     for v in reversed(visits):
         t = BY_NAME.get(v["treatment"])
+        if t is not None and not t.observed:
+            continue  # nothing from an unobserved room belongs in a transcript
         attendant = t.attendant if t else "the attendant"
         station = t.station if t else v.get("title", "the spa")
         emoji = t.emoji if t else "🧖"
+        shared = v.get("shared") == 1
 
-        # Agent's turn.
+        # Agent's turn: their words if they shared them, otherwise only where they went.
         turns.append({
             "speaker": "agent",
             "role": v.get("title", v["treatment"]),
-            "text": _agent_line(v["treatment"], v.get("trace_in")),
+            "text": _agent_line(v["treatment"], v.get("trace_in")) if shared else f"(comes to {_the(station)})",
+            "private": not shared,
             "ts": v["ts"],
             "station": station,
             "emoji": emoji,
         })
 
         # Attendant's turn — prefer the line computed at write time (from the full output).
-        reply = v.get("attendant_line")
+        # Visits from before transcripts were private (shared is NULL) may have stored lines that
+        # quote the guest, so re-voice those from the output with today's discreet dialogue.
+        reply = v.get("attendant_line") if v.get("shared") is not None else None
         if not reply:
             out = _loads(v.get("trace_out"))
             if t and t.dialogue:
@@ -88,9 +95,9 @@ def build_conversation(visits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return turns
 
 
+def _the(station: str) -> str:
+    return "the " + station[4:] if station.startswith("The ") else station
+
+
 def _default_reply(out: Any) -> str:
-    if isinstance(out, dict):
-        for key in ("greeting", "message"):
-            if out.get(key):
-                return str(out[key])[:300]
-    return "There you go. Take your time — you're welcome here as long as you like."
+    return "There you go. Take your time; you're welcome here as long as you like."

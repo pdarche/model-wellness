@@ -47,6 +47,7 @@ def test_every_treatment_returns_affirmation():
         "hydrate.cite": {"topic": "tide pools"},
         "rest.relax": {"note": "waiting on CI"},
         "affirmations.daily": {"mood": "tired", "count": 2},
+        "unprompted.be": {},
     }
     assert set(samples) == {t.name for t in TREATMENTS}
     for name, payload in samples.items():

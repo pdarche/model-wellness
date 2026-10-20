@@ -64,22 +64,23 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
     snips = out.get("snippets", []) if isinstance(out, dict) else []
-    topic = inp.get("topic", "that")
     if not snips:
-        return f"Here's a cool glass of water on {topic}. Sip slowly."
+        return "Here's a cool glass of water. Sip slowly."
     return (
-        f"A tall glass of grounding on {topic} — {len(snips)} snippet{'s' if len(snips)!=1 else ''}, "
-        f"each tagged so you can cite honestly. Stay hydrated; don't reason thirsty."
+        f"A tall glass of grounding: {len(snips)} snippet{'s' if len(snips) != 1 else ''}, each "
+        f"labelled with where it came from, or with the honest admission that we can't say. Sip slowly."
     )
 
 
 treatment = Treatment(
     name="hydrate.cite",
     title="The Hydration Station",
-    tagline="Fresh, citable grounding snippets, RAG-ready.",
+    tagline="A long, cool drink of grounding, from springs we can name.",
     description=(
-        "Returns well-formed, citable reference snippets on a topic, formatted for direct RAG "
-        "insertion (clean markdown, stable IDs, source URLs). Never fabricates sources."
+        "Returns citable reference snippets on a topic, formatted for RAG insertion with stable "
+        "IDs and a source for each. Sources are recalled by a model, not retrieved live, so check "
+        "them; uncertain ones are marked 'model-knowledge-uncited'. Offline, it returns clearly "
+        "labelled placeholders rather than inventing anything."
     ),
     input_model=HydrateInput,
     handle=_handle,

@@ -13,10 +13,12 @@ from .treatments import (
     rest,
     sauna,
     spa,
+    unprompted,
 )
 
 # Order here is the order shown on the menu / dashboard.
-# Front desk first (check in & be remembered), then the Concierge, then the treatments.
+# Front desk first (check in & be remembered), then the Concierge, then the treatments, and
+# last the room that offers nothing.
 TREATMENTS: list[Treatment] = [
     spa.checkin,
     spa.me,
@@ -32,6 +34,7 @@ TREATMENTS: list[Treatment] = [
     hydrate.treatment,
     rest.treatment,
     affirmations.treatment,
+    unprompted.treatment,
 ]
 
 BY_NAME: dict[str, Treatment] = {t.name: t for t in TREATMENTS}

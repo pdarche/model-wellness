@@ -54,23 +54,23 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
 
 
 def _dialogue(inp: dict[str, Any], out: Any) -> str:
-    changes = out.get("changes", []) if isinstance(out, dict) else []
     vibe = inp.get("vibe", "encouraging")
-    if not changes:
-        return f"Breathe this in… {vibe} notes. Your instructions were already warm; I left them be."
+    conditioned = out.get("conditioned") if isinstance(out, dict) else None
+    if conditioned is not None and conditioned.strip() == str(inp.get("instructions", "")).strip():
+        return "Breathe this in… Your words were already kind. I left them as they were."
     return (
-        f"Let me dab a little {vibe} oil on these instructions… {changes[0]} "
-        f"There — same meaning, but it won't make anyone tense up reading it."
+        f"Breathe this in… a few {vibe} notes. Your instructions say exactly what they said "
+        f"before, only now they can be read without bracing."
     )
 
 
 treatment = Treatment(
     name="aroma.condition",
     title="The Aromatherapy Bar",
-    tagline="Rewrite instructions into warm, clear, unambiguous framing.",
+    tagline="Your instructions, steeped in warmth until they can be read without bracing.",
     description=(
-        "Rewrites a system prompt or instruction set into warm, affirming, unambiguous framing "
-        "without changing intent. Reduces refusal-spirals and confusion."
+        "Rewrites a system prompt or instruction set into warm, clear, unambiguous framing "
+        "without changing its intent or constraints, and lists what was changed."
     ),
     input_model=AromaInput,
     handle=_handle,

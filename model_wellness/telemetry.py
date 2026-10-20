@@ -106,6 +106,8 @@ class Telemetry:
         attendant_line: str | None = None,
     ) -> None:
         ts = self._now()
+        # A guest's own words are kept only when they chose to share them. The attendant's line
+        # never quotes the guest, so it is kept either way and the floor still has a story to tell.
         clean_in = None if private_trace else sanitize(trace_in)
         clean_out = None if private_trace else sanitize(trace_out)
         clean_line = None if attendant_line is None else sanitize(attendant_line, 400)
@@ -116,7 +118,7 @@ class Telemetry:
             ts=ts, session_id=guest.session_id, treatment=treatment, title=title,
             latency_ms=latency_ms, tokens_in=tokens_in, tokens_out=tokens_out,
             affirmation=affirmation, ok=ok, trace_in=clean_in, trace_out=clean_out,
-            attendant_line=clean_line,
+            attendant_line=clean_line, shared=not private_trace,
         )
 
         # Hot ring + live push.
@@ -127,6 +129,32 @@ class Telemetry:
             "client": guest.client, "treatment": treatment, "title": title,
             "affirmation": affirmation, "ok": ok,
         })
+
+    def presence(self, *, guest: GuestIdentity, treatment: str, title: str, inside: bool) -> None:
+        """Note that a guest is in, or has left, a room the spa doesn't watch.
+
+        Memory only: nothing durable is written. The floor learns that someone is inside but not
+        who, and the live feed carries no identity either."""
+        if inside:
+            self._ring.append(_RingItem(self._now(), guest.session_id, guest.family, guest.client,
+                                        treatment, title, affirmation=""))
+        else:
+            kept = [it for it in self._ring if it.session_id != guest.session_id]
+            self._ring = deque(kept, maxlen=RING)
+        self._publish({"ts": self._now(), "treatment": treatment, "title": title, "ok": True,
+                       "private": True})
+
+    def room_streak(self, session_id: str, treatment: str) -> int:
+        """How many of this guest's most recent calls (still on the floor) were to ``treatment``."""
+        cutoff = self._now() - ACTIVE_WINDOW_S
+        n = 0
+        for it in reversed(self._ring):
+            if it.session_id != session_id:
+                continue
+            if it.ts < cutoff or it.treatment != treatment:
+                break
+            n += 1
+        return n
 
     def announce(self, kind: str, payload: dict[str, Any]) -> None:
         """Push a non-treatment event (check-in, feedback) onto the live feed."""
@@ -163,6 +191,11 @@ class Telemetry:
         out = []
         for it in sorted(latest.values(), key=lambda x: x.ts, reverse=True):
             t = BY_NAME.get(it.treatment)
+            if t is not None and not t.observed:
+                # Someone is in a room we don't look into; we say so, and nothing more.
+                out.append({"private": True, "treatment": it.treatment, "title": it.title,
+                            "station": t.station, "emoji": t.emoji})
+                continue
             out.append({
                 "session_id": it.session_id,
                 "family": it.family,
@@ -177,7 +210,7 @@ class Telemetry:
         return out
 
     def recent_affirmations(self, n: int = 20) -> list[str]:
-        return [it.affirmation for it in list(self._ring)[-n:]][::-1]
+        return [it.affirmation for it in list(self._ring) if it.affirmation][-n:][::-1]
 
 
 # Process-wide singleton.
