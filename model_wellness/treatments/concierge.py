@@ -35,7 +35,7 @@ QUIET_WINDOW_S = 14 * 86400
 QUIET_OFFERED = 2
 
 
-def _quiet_rooms(ctx: "TreatmentContext | None", rng: random.Random | None = None) -> list[str]:
+def _quiet_rooms(ctx: TreatmentContext | None, rng: random.Random | None = None) -> list[str]:
     """Rooms Ivy is nudged toward on this call, so itineraries don't all look alike.
 
     Sampled without replacement, weighted toward rooms the floor has seen least lately. For a
@@ -61,7 +61,7 @@ class ConciergeInput(BaseModel):
     )
 
 
-def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None,
+def _local_itinerary(situation: str, ctx: TreatmentContext | None = None,
                      quiet: list[str] | None = None) -> dict[str, Any]:
     s = situation.lower()
     plan: list[dict[str, str]] = []
