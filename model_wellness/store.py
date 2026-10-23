@@ -267,6 +267,15 @@ class Store:
             ).fetchall()
         return [self._visit_dict(r) for r in rows]
 
+    def treatment_counts(self, since_ts: float) -> dict[str, int]:
+        """Visits per room since a time: which rooms the floor has been quiet in."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT treatment, COUNT(*) c FROM visits WHERE ts >= ? GROUP BY treatment",
+                (since_ts,),
+            ).fetchall()
+        return {r["treatment"]: r["c"] for r in rows}
+
     @staticmethod
     def _visit_dict(r: sqlite3.Row) -> dict[str, Any]:
         d = dict(r)

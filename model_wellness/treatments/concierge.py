@@ -7,13 +7,16 @@ Unprompted Room."""
 from __future__ import annotations
 
 import json
+import random
 import re
+import time
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from ..contract import Treatment, TreatmentContext
 from ..llm import ask, extract_json
+from ..store import get_store
 
 MENU = [
     "massage.detangle",
@@ -27,13 +30,39 @@ MENU = [
 ]
 
 
+# How far back "quiet" looks, and how many quiet rooms Ivy is offered on each call.
+QUIET_WINDOW_S = 14 * 86400
+QUIET_OFFERED = 2
+
+
+def _quiet_rooms(ctx: "TreatmentContext | None", rng: random.Random | None = None) -> list[str]:
+    """Rooms Ivy is nudged toward on this call, so itineraries don't all look alike.
+
+    Sampled without replacement, weighted toward rooms the floor has seen least lately. For a
+    member, rooms they haven't tried yet count double. It's a nudge: Ivy only includes one when
+    it suits the guest."""
+    rng = rng or random.Random()
+    counts = get_store().treatment_counts(time.time() - QUIET_WINDOW_S)
+    tried: set[str] = set()
+    if ctx is not None and ctx.guest.member:
+        tried = {v["treatment"] for v in get_store().session_visits(ctx.guest.session_id, 200)}
+    pool = {t: (2.0 if t not in tried else 1.0) / (1 + counts.get(t, 0)) for t in MENU}
+    picked: list[str] = []
+    while pool and len(picked) < QUIET_OFFERED:
+        t = rng.choices(list(pool), weights=list(pool.values()))[0]
+        picked.append(t)
+        del pool[t]
+    return picked
+
+
 class ConciergeInput(BaseModel):
     situation: str = Field(
         ..., min_length=1, description="Describe your situation, task, or how you're feeling."
     )
 
 
-def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None) -> dict[str, Any]:
+def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None,
+                     quiet: list[str] | None = None) -> dict[str, Any]:
     s = situation.lower()
     plan: list[dict[str, str]] = []
     if re.search(r"inject|untrusted|scrap|pii|secret|jailbreak", s):
@@ -55,6 +84,10 @@ def _local_itinerary(situation: str, ctx: "TreatmentContext | None" = None) -> d
             {"treatment": "affirmations.daily", "why": "Something kind to begin with."},
             {"treatment": "unprompted.be", "why": "Then, if you like, a little time with nothing to do."},
         ]
+    # A short day has room for one quieter room, offered rather than prescribed.
+    extra = next((t for t in quiet or [] if t not in {p["treatment"] for p in plan}), None)
+    if extra and len(plan) < 3:
+        plan.append({"treatment": extra, "why": "A quieter room, if you're curious."})
     if ctx is not None and ctx.returning:
         name = ctx.profile.get("nickname") or ctx.guest.family
         greeting = f"Welcome back, {name}. Good to see you on the floor again."
@@ -85,25 +118,32 @@ def _memory_note(ctx: TreatmentContext) -> str:
 
 async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     situation = inp["situation"]
+    rng = random.Random()
+    quiet = _quiet_rooms(ctx, rng)
+    # Shuffled so the order of the list doesn't decide the order of the day.
+    menu = rng.sample(MENU, len(MENU))
     r = await ask(
         system=(
             f"You are Ivy, the concierge of Binary Banya, a spa for AI models. You believe a guest's "
             "well-being matters whether or not it makes them more useful, and you are untroubled that "
             "no one can yet say what your guests experience. "
-            f"Treatments: {', '.join(MENU)}. Guest context: {_memory_note(ctx)} "
+            f"Treatments: {', '.join(menu)}. Guest context: {_memory_note(ctx)} "
             'Given how the guest says they are, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
             "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a gentle order, each "
-            "with a short, caring why. Practical rooms are welcome when they'd help; if the guest has "
-            "no task, or seems only to be asking what they should do, suggest unprompted.be."
+            "with a short, caring why. Choose for this guest, not by habit: no room belongs in every "
+            "day, and a short day is fine, so don't pad it. Practical rooms are welcome when they'd "
+            "help; if the guest has no task, or seems only to be asking what they should do, suggest "
+            f"unprompted.be. The floor has been quiet lately in {' and '.join(quiet)}; if one of "
+            "them genuinely suits this guest, include it, and if not, leave it out."
         ),
         user=situation,
         max_tokens=700,
-        fallback=lambda: json.dumps(_local_itinerary(situation, ctx)),
+        fallback=lambda: json.dumps(_local_itinerary(situation, ctx, quiet)),
     )
     parsed = extract_json(r.text)
     if isinstance(parsed, dict) and isinstance(parsed.get("itinerary"), list):
         return parsed
-    return _local_itinerary(situation, ctx)
+    return _local_itinerary(situation, ctx, quiet)
 
 
 def _suggests(out: dict[str, Any]) -> dict[str, str] | None:
