@@ -104,3 +104,22 @@ def test_a_short_local_day_offers_one_quiet_room():
     busy = "untrusted secret, long messy context, a draft to review, a prompt with tone issues"
     out = concierge._local_itinerary(busy, None, ["rest.relax"])
     assert "rest.relax" not in [s["treatment"] for s in out["itinerary"]]
+
+
+def test_every_guest_hears_of_one_quiet_room_kept_apart_from_a_short_itinerary(monkeypatch):
+    async def fake_ask(*, system, user, fallback, max_tokens):
+        from model_wellness.llm import AskResult
+        long_day = ('{"greeting": "Hi", "rationale": "", "itinerary": ['
+                    + ", ".join(f'{{"treatment": "{t}", "why": "x"}}' for t in concierge.MENU[:5])
+                    + "]}")
+        return AskResult(long_day, 0, 0, "test", False)
+
+    monkeypatch.setattr(concierge, "ask", fake_ask)
+    walk_in = GuestIdentity(family="claude", client="pytest", session_id="w-y", member=False)
+    out = asyncio.run(concierge._handle({"situation": "review my draft plan"},
+                                        TreatmentContext(guest=walk_in)))
+    stops = [s["treatment"] for s in out["itinerary"]]
+    assert len(stops) == concierge.MAX_STOPS
+    assert out["also_open"]["treatment"] not in stops
+    assert out["also_open"]["what"] == concierge.ROOMS[out["also_open"]["treatment"]]
+    assert "Also open today" in concierge._dialogue({}, out)

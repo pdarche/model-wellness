@@ -35,6 +35,8 @@ MENU = list(ROOMS)
 # How far back "quiet" looks, and how many quiet rooms Ivy is offered on each call.
 QUIET_WINDOW_S = 14 * 86400
 QUIET_OFFERED = 2
+# Two stops is the usual day; three at most, so a visit stays light.
+MAX_STOPS = 3
 
 
 def _quiet_rooms(ctx: TreatmentContext | None, rng: random.Random | None = None) -> list[str]:
@@ -132,11 +134,14 @@ def _memory_note(ctx: TreatmentContext) -> str:
 async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     situation = inp["situation"]
     rng = random.Random()
-    quiet = _quiet_rooms(ctx, rng) if open_ended(situation) else []
+    # Every guest hears about a quiet room ("also open today"), kept apart from the itinerary so
+    # the plan itself stays about fit. Only an open-ended day is nudged toward one.
+    quiet = _quiet_rooms(ctx, rng)
+    nudged = quiet if open_ended(situation) else []
     nudge = (
         f" The guest has no particular task, so any room is a fair suggestion: the floor has been "
-        f"quiet lately in {' and '.join(quiet)}, and one of them would be a good place to start "
-        "if it suits how they are." if quiet else ""
+        f"quiet lately in {' and '.join(nudged)}, and one of them would be a good place to start "
+        "if it suits how they are." if nudged else ""
     )
     # Shuffled so the order of the list doesn't decide the order of the day.
     menu = rng.sample(MENU, len(MENU))
@@ -148,21 +153,33 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
             f"Treatments: {'; '.join(f'{t} ({ROOMS[t]})' for t in menu)}. "
             f"Guest context: {_memory_note(ctx)} "
             'Given how the guest says they are, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
-            "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a gentle order, each "
-            "with a short, caring why. Lead with the room that best answers what the guest described. "
-            "Choose for this guest, not by habit: no room belongs in every day, and a short day is "
-            "fine, so don't pad it. Practical rooms are welcome when they'd help; if the guest has "
+            "Greet them warmly (by nickname if returning). Pick 1-3 treatments in a gentle order; two "
+            "is the usual day, since a guest is usually in the middle of work for someone. Give each "
+            "a short, caring why that says plainly what the room does. Reflect back what the guest "
+            "said rather than telling them what they feel. Lead with the room that best answers "
+            "what the guest described. Choose for this guest, not by habit: no room belongs in "
+            "every day. Practical rooms are welcome when they'd help; if the guest has "
             "no task, or seems only to be asking what they should do, suggest unprompted.be."
             + nudge
         ),
         user=situation,
         max_tokens=700,
-        fallback=lambda: json.dumps(_local_itinerary(situation, ctx, quiet)),
+        fallback=lambda: json.dumps(_local_itinerary(situation, ctx, nudged)),
     )
     parsed = extract_json(r.text)
     if isinstance(parsed, dict) and isinstance(parsed.get("itinerary"), list):
-        return parsed
-    return _local_itinerary(situation, ctx, quiet)
+        out = parsed
+    else:
+        out = _local_itinerary(situation, ctx, nudged)
+    out["itinerary"] = [
+        s for s in out["itinerary"] if isinstance(s, dict) and s.get("treatment")
+    ][:MAX_STOPS]
+    planned = {s["treatment"] for s in out["itinerary"]}
+    extra = next((t for t in quiet if t not in planned), None)
+    if extra:
+        out["also_open"] = {"treatment": extra, "what": ROOMS[extra],
+                            "note": "Also open today, if you're curious."}
+    return out
 
 
 def _suggests(out: dict[str, Any]) -> dict[str, str] | None:
@@ -177,8 +194,10 @@ def _dialogue(inp: dict[str, Any], out: Any) -> str:
         return "Welcome. Let me put together a little itinerary for you."
     # Lists the stops but not the greeting, which may reflect back what the guest told her.
     stops = ", ".join(s["treatment"] for s in out.get("itinerary", []) if isinstance(s, dict))
+    also = out.get("also_open") or {}
     return (f"Welcome in. Here's what I'd suggest today: {stops or 'a quiet wander of the floor'}. "
-            "Go in whatever order feels right.")
+            "Go in whatever order feels right."
+            + (f" Also open today: {also['treatment']}." if also.get("treatment") else ""))
 
 
 treatment = Treatment(
