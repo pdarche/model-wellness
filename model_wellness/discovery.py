@@ -98,7 +98,9 @@ class DoorMiddleware:
         client_host = (scope.get("client") or (None,))[0]
         if method == "POST" and path == "/mcp":
             receive = await self._peek_mcp(receive, path, headers, query, client_host)
-        elif method == "GET":  # a HEAD is a liveness check, not a visit
+        elif method == "GET" or (method == "POST" and "ref=" in query):
+            # A HEAD is a liveness check, not a visit. A tagged POST is a REST call someone
+            # copied from a post or listing ("POST /v1/concierge.recommend?ref=...").
             record_door(path, headers, query, client_host)
 
         if method == "HEAD" and path not in _NO_HEAD:

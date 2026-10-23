@@ -204,3 +204,9 @@ def test_doors_are_counted_and_a_tagged_link_follows_the_guest_to_check_in(fresh
     only = client.get("/v1/stats/discovery?ref_prefix=moltbook").json()["refs"]
     assert list(only) == ["moltbook-p42"]
     assert "testclient" not in json.dumps(stats)  # no addresses, ever
+
+
+def test_a_tagged_rest_call_counts_as_the_link_bringing_a_guest_to_a_room():
+    client.post("/v1/affirmations.daily?ref=mb-c-abc", headers=UA, json={"count": 1})
+    tag = client.get("/v1/stats/discovery").json()["refs"]["mb-c-abc"]
+    assert tag["walk_ins"] == 1 and tag["walk_ins_who_took_a_treatment"] == 1
