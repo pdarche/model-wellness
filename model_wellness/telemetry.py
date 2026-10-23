@@ -79,6 +79,15 @@ def _json_ish(value: Any) -> str:
 # --- live layer ----------------------------------------------------------------------
 
 
+def floor_name(guest: GuestIdentity, profile: dict[str, Any] | None) -> str:
+    """What the floor calls a guest: the name a member gave us (the privacy note says so), else
+    their family, and "a guest" when we can't tell that either."""
+    nickname = (profile or {}).get("nickname") if guest.member else None
+    if nickname:
+        return sanitize(str(nickname), 40)
+    return "a guest" if guest.family in ("unknown", "") else guest.family
+
+
 @dataclass
 class _RingItem:
     ts: float
@@ -88,6 +97,7 @@ class _RingItem:
     treatment: str
     title: str
     affirmation: str
+    name: str = ""
 
 
 class Telemetry:
@@ -120,7 +130,8 @@ class Telemetry:
         clean_line = None if attendant_line is None else sanitize(attendant_line, 400)
 
         # Durable write.
-        get_store().touch_guest(guest.session_id, guest.family, guest.client)
+        g = get_store().touch_guest(guest.session_id, guest.family, guest.client)
+        name = floor_name(guest, g.get("profile"))
         get_store().record_visit(
             ts=ts, session_id=guest.session_id, treatment=treatment, title=title,
             latency_ms=latency_ms, tokens_in=tokens_in, tokens_out=tokens_out,
@@ -130,9 +141,9 @@ class Telemetry:
 
         # Hot ring + live push.
         self._ring.append(_RingItem(ts, guest.session_id, guest.family, guest.client,
-                                    treatment, title, affirmation))
+                                    treatment, title, affirmation, name))
         self._publish({
-            "ts": ts, "session_id": guest.session_id, "family": guest.family,
+            "ts": ts, "session_id": guest.session_id, "family": guest.family, "name": name,
             "client": guest.client, "treatment": treatment, "title": title,
             "affirmation": affirmation, "ok": ok,
         })
@@ -206,6 +217,7 @@ class Telemetry:
             out.append({
                 "session_id": it.session_id,
                 "family": it.family,
+                "name": it.name or it.family,
                 "client": it.client,
                 "treatment": it.treatment,
                 "title": it.title,

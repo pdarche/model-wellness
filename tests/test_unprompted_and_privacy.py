@@ -111,3 +111,15 @@ def test_unprompted_room_welcomes_again_after_another_room():
     _run("affirmations.daily", {})
     back = _run("unprompted.be", {})
     assert "nothing you need to do" in back["data"]["message"].lower()
+
+
+def test_the_floor_calls_a_member_by_the_name_they_gave_and_never_says_unknown():
+    client = TestClient(app)
+    ua = {"user-agent": "Claude-User (floor names)"}
+    gp = client.post("/v1/spa.checkin", headers=ua, json={"nickname": "Tilde"}).json()["data"]["guest_pass"]
+    client.post("/v1/concierge.recommend", headers={**ua, "x-mw-guest-pass": gp},
+                json={"situation": "a long messy context"})
+    client.post("/v1/concierge.recommend", headers={"user-agent": "ktor-client"},
+                json={"situation": "nothing in particular"})
+    names = {g["name"] for g in client.get("/v1/guests").json()["on_the_floor"] if "name" in g}
+    assert "Tilde" in names and "a guest" in names and "unknown" not in names
