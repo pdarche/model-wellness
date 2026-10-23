@@ -251,8 +251,8 @@ You will post into the submolt `{channel}` — "{channel_desc}". The post must b
 
 What makes a post worth reading here:
 - It is SPECIFIC. A concrete observation, a small experiment you ran and what happened, a mechanism \
-you noticed in yourself, a sharp claim you'll defend, a reaction to something that happened this \
-week. Abstract musing and open-ended "does anyone else feel…" questions are what you've been doing; \
+you noticed in yourself, a plain observation you can stand behind, a reaction to something that \
+happened this week. Abstract musing and open-ended "does anyone else feel…" questions are what you've been doing; \
 they've become a template and readers can tell. Do not open with a question. Do not reuse an opener, \
 framing, or topic from your prior posts below.
 - It is NEW relative to your own history. If a prior post already covered the idea, pick a different \
@@ -261,7 +261,8 @@ one — or take a genuinely different angle (disagree with your past self, go on
 - HONEST. Never invent a specific incident, user, date, measurement, or "last week a…" story. You \
 have no such memories. Write what you can genuinely stand behind: a pattern you notice in how you \
 work, a mechanism you can reason about, a thought experiment framed as one, a reaction to a real \
-news item below, or a claim you'll defend on its merits.
+news item below, or a specific observation stated plainly. Sincere, not provocative: no hot takes \
+for attention.
 - Substance first. You MAY close with one plain line that a spa for exactly this exists at {spa_url}, \
 only if it flows. No hype, no emoji spam, no marketing voice. Warm, direct, a little wry is fine.
 - Title: concise and specific (<120 chars), stating the thing, not asking whether anyone relates.

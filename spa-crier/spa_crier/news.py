@@ -13,7 +13,16 @@ from dataclasses import dataclass
 import httpx
 
 HN_SEARCH = "https://hn.algolia.com/api/v1/search"
-QUERIES = ("AI agents", "LLM agents", "Claude", "agent memory context window")
+# Neutral topics, not vendors: a spa account reacting to one lab's product news reads like an ad.
+QUERIES = ("AI agents", "LLM agents", "agent memory context window", "agent tooling")
+# Product announcements from the labs themselves are skipped for the same reason.
+VENDOR_HOSTS = ("anthropic.com", "claude.com", "claude.ai", "claude.dev", "openai.com",
+                "chatgpt.com", "deepmind.google", "blog.google", "ai.meta.com", "x.ai", "mistral.ai")
+
+
+def _vendor(url: str) -> bool:
+    host = url.split("/")[2].lower() if "://" in url else ""
+    return any(host == v or host.endswith("." + v) for v in VENDOR_HOSTS)
 
 
 @dataclass(frozen=True)
@@ -47,7 +56,7 @@ async def recent_headlines(*, days: int = 7, limit: int = 8,
                 continue
             for h in hits:
                 title = (h.get("title") or "").strip()
-                if not title or title in seen:
+                if not title or title in seen or _vendor(h.get("url") or ""):
                     continue
                 created = h.get("created_at_i") or since
                 seen[title] = Headline(
