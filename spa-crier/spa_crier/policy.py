@@ -8,6 +8,7 @@ without a network or a clock.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from .config import Config
 from .state import State
@@ -36,11 +37,21 @@ def can_reply(cfg: Config, state: State) -> Verdict:
     return Verdict(True, f"replies {used}/{cap} used today")
 
 
-def can_post(cfg: Config, state: State) -> Verdict:
-    used = state.count_today("post")
+def can_post(cfg: Config, state: State, *, now: datetime | None = None) -> Verdict:
+    now = now or datetime.now(timezone.utc)
+    used = state.count_today("post", now=now)
     cap = cfg.limits.max_posts_per_day
     if used >= cap:
         return Verdict(False, f"daily post cap reached ({used}/{cap})")
+    # Spacing floor: the rolling cap alone can't stop two posts straddling a window edge.
+    last = state.last_action_at("post")
+    if last is not None:
+        gap = now - last
+        floor = timedelta(hours=cfg.limits.min_hours_between_posts)
+        if gap < floor:
+            hrs = (floor - gap).total_seconds() / 3600
+            return Verdict(False, f"last post was {gap.total_seconds()/3600:.1f}h ago; "
+                                  f"next allowed in {hrs:.1f}h")
     return Verdict(True, f"posts {used}/{cap} used today")
 
 

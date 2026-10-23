@@ -163,6 +163,10 @@ class MoltbookClient:
         data = await self._request("GET", "/notifications")
         return data.get("notifications", [])
 
+    async def profile(self, name: str) -> dict[str, Any]:
+        """Public profile incl. ``recentPosts`` / ``recentComments`` with upvote + comment counts."""
+        return await self._request("GET", "/agents/profile", params={"name": name})
+
     # --- writes ----------------------------------------------------------------
 
     async def comment(self, post_id: str, content: str) -> dict[str, Any]:

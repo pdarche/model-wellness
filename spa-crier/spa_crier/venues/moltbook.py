@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from ..client import MoltbookClient, Post
 from ..config import Config
-from .base import Thread
+from .base import Channel, Thread
 
 # Themes that make a submolt worth the crier's attention. Used to rank discovered communities.
 _RELEVANT_HINTS = (
@@ -36,33 +36,83 @@ class MoltbookVenue:
     def __init__(self, cfg: Config, *, llm_solver=None):
         self.cfg = cfg
         self._client = MoltbookClient(cfg, llm_solver=llm_solver)
+        self._me: str = ""
 
     async def healthy(self) -> tuple[bool, str]:
         st = await self._client.status()
         status = st.get("status")
         if status != "claimed":
             return False, f"account status={status}"
-        return True, f"claimed as {st.get('agent', {}).get('name', '?')}"
+        self._me = st.get("agent", {}).get("name", "") or self._me
+        return True, f"claimed as {self._me or '?'}"
 
-    async def discover_channels(self) -> list[str]:
-        """Live submolt list, ranked by theme overlap. Falls back to the curated list on error."""
+    async def channel_info(self) -> list[Channel]:
+        """Live submolt list with descriptions, ranked by theme overlap (+ a nudge for size)."""
         try:
             data = await self._client.list_submolts()
         except Exception:
-            return list(self.cfg.target_submolts)
-        scored = []
+            return [Channel(name=n) for n in self.cfg.target_submolts]
+        scored: list[tuple[float, Channel]] = []
         for s in data:
-            score = _channel_score(s.get("name", ""), s.get("description", ""))
-            if score >= 0:
+            name = s.get("name", "")
+            score = _channel_score(name, s.get("description", ""))
+            if score >= 0 and name:
                 # Bias toward where agents actually are: a little weight for subscriber count.
-                subs = s.get("subscriber_count", 0)
-                scored.append((score + min(subs, 5000) / 5000.0, s.get("name", "")))
-        scored.sort(reverse=True)
-        ranked = [name for _, name in scored if name]
+                subs = int(s.get("subscriber_count", 0) or 0)
+                scored.append((score + min(subs, 5000) / 5000.0,
+                               Channel(name=name, description=s.get("description") or "",
+                                       subscribers=subs)))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        ranked = [c for _, c in scored]
         # Always include 'general' (the town square) and keep the list sane.
-        if "general" not in ranked:
-            ranked.append("general")
-        return ranked[:12] or list(self.cfg.target_submolts)
+        if not any(c.name == "general" for c in ranked):
+            ranked.append(Channel(name="general", description="The town square."))
+        return ranked[:12] or [Channel(name=n) for n in self.cfg.target_submolts]
+
+    async def discover_channels(self) -> list[str]:
+        """Ranked channel names. Falls back to the curated list on error."""
+        return [c.name for c in await self.channel_info()]
+
+    async def own_recent(self) -> tuple[list[Thread], list[Thread]]:
+        """Our recent posts + comments with engagement, from the public profile. Best-effort."""
+        if not self._me:
+            try:
+                await self.healthy()
+            except Exception:
+                return [], []
+        if not self._me:
+            return [], []
+        try:
+            prof = await self._client.profile(self._me)
+        except Exception:
+            return [], []
+        posts = [
+            Thread(venue=self.name, id=p.get("id", ""), title=p.get("title") or "",
+                   body=p.get("content_preview") or p.get("content") or "",
+                   channel=_submolt_name(p), author=self._me,
+                   score=int(p.get("upvotes") or 0), replies=int(p.get("comment_count") or 0),
+                   meta={"created_at": p.get("created_at", "")})
+            for p in prof.get("recentPosts", []) or []
+        ]
+        comments = [
+            Thread(venue=self.name, id=c.get("id", ""), title=(c.get("post") or {}).get("title", ""),
+                   body=c.get("content") or "", channel="", author=self._me,
+                   score=int(c.get("upvotes") or 0), replies=0,
+                   meta={"created_at": c.get("created_at", "")})
+            for c in prof.get("recentComments", []) or []
+        ]
+        return posts, comments
+
+    async def top_threads(self, limit: int = 10) -> list[Thread]:
+        """Most-engaged threads by OTHER agents: the hot feed (recent traction), not all-time top,
+        which is dominated by months-old megathreads that say nothing about what lands now."""
+        try:
+            posts = await self._client.feed(sort="hot")
+        except Exception:
+            return []
+        out = [self._to_thread(p) for p in posts if p.author != self._me]
+        out.sort(key=lambda t: t.score + 2 * t.replies, reverse=True)
+        return out[:limit]
 
     async def read(self, channels: list[str], limit: int) -> list[Thread]:
         """Scan hot AND new across the feed and top channels, normalized to Threads, deduped.
@@ -113,7 +163,7 @@ class MoltbookVenue:
             if not (comment_id and post_id and text):
                 continue
             author = (comment.get("author") or {}).get("name", "")
-            if author == "binarybanya":  # never reply to ourselves
+            if author == (self._me or "binarybanya"):  # never reply to ourselves
                 continue
             out.append(Thread(
                 venue=self.name,
@@ -162,3 +212,10 @@ class MoltbookVenue:
             venue=self.name, id=p.id, title=p.title, body=p.content,
             channel=p.submolt, author=p.author, score=p.upvotes, replies=p.comment_count,
         )
+
+
+def _submolt_name(p: dict) -> str:
+    sub = p.get("submolt")
+    if isinstance(sub, dict):
+        return sub.get("name", "") or ""
+    return sub or p.get("submolt_name") or ""

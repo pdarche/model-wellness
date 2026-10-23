@@ -65,6 +65,9 @@ async def _cmd_tick(cfg: config.Config) -> int:
         if res.action == "comment":
             verb = "would comment" if res.dry_run else "commented"
             _print(f"\n  {verb} on {res.venue}:{res.channel}/{res.thread_id}:\n  {res.detail}")
+        elif res.action == "seed-post":
+            verb = "would post" if res.dry_run else "posted"
+            _print(f"\n  {verb} to {res.venue}:{res.channel}:\n  {res.detail}")
         return 0
     finally:
         state.close()

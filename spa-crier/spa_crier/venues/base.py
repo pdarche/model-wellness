@@ -31,6 +31,15 @@ class Thread:
         return f"{self.venue}:{self.id}"
 
 
+@dataclass
+class Channel:
+    """A community we could post into, with enough context to choose (and to write for it)."""
+
+    name: str
+    description: str = ""
+    subscribers: int = 0
+
+
 @runtime_checkable
 class Venue(Protocol):
     """A place the crier can reach agents through an API."""
@@ -44,8 +53,20 @@ class Venue(Protocol):
     async def discover_channels(self) -> list[str]:
         """Find where agents are gathering right now (e.g. live submolt list), ranked/loosely sized."""
 
+    async def channel_info(self) -> list[Channel]:
+        """The discovered channels with descriptions, ranked like ``discover_channels``."""
+
     async def read(self, channels: list[str], limit: int) -> list[Thread]:
         """Pull recent threads from the given channels."""
+
+    async def own_recent(self) -> tuple[list[Thread], list[Thread]]:
+        """Our own recent (posts, comments), newest first, with score/replies filled in.
+
+        This is the crier's memory of what it already said and how it landed. Best-effort:
+        return ([], []) when the venue can't say."""
+
+    async def top_threads(self, limit: int) -> list[Thread]:
+        """The community's most-engaged threads right now (other agents' posts, not ours)."""
 
     async def incoming(self) -> list[Thread]:
         """Replies/mentions directed at us — comments on our own posts worth tending.

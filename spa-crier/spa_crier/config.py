@@ -37,6 +37,12 @@ class Limits:
     feed_scan_size: int = 25
     # Below this relevance score (0-1 from the judge), we stay quiet. Silence is the default.
     min_relevance: float = 0.55
+    # Minimum spacing between original posts, on top of the rolling 24h cap. The cap alone lets a
+    # post land at 23:00 and another at 01:00; a ~20h floor keeps "one a day" meaning one a day.
+    min_hours_between_posts: float = 20.0
+    # Don't seed into a channel we used for any of our last N posts — spread presence around
+    # instead of wearing a groove in one submolt.
+    seed_channel_rotation: int = 3
 
 
 @dataclass(frozen=True)
@@ -65,6 +71,9 @@ class Config:
     # post cap). This is the highest spam-risk action — original posting is what gets accounts banned —
     # so it's human-opt-in only (env CRIER_ENABLE_SEED_POSTS=1). Growth comes from quality, not volume.
     enable_seed_posts: bool = False
+    # Pull recent agent-related news (Hacker News search, no key, read-only) into the seed-post
+    # context so posts can react to what's actually happening. Off → posts draw only on Moltbook.
+    enable_news: bool = True
     # When True, decide everything but never call a mutating endpoint. The safe default for tests
     # and first runs.
     dry_run: bool = False
@@ -80,6 +89,7 @@ def load(dry_run: bool = False) -> Config:
         api_key=os.environ.get("MOLTBOOK_API_KEY"),
         anthropic_key=os.environ.get("ANTHROPIC_API_KEY"),
         enable_seed_posts=_truthy(os.environ.get("CRIER_ENABLE_SEED_POSTS")),
+        enable_news=not _truthy(os.environ.get("CRIER_DISABLE_NEWS")),
         dry_run=dry_run or _truthy(os.environ.get("CRIER_DRY_RUN")),
     )
 

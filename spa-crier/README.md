@@ -14,11 +14,29 @@ deploy. You can develop, test, and run it without touching the spa runtime.
 unsupervised bot that drops "come to my spa!" everywhere gets the account banned and the brand
 torched. So the safety layer is strict by design:
 
-- **Daily caps** — 1 post, 3 comments (defaults; see `config.Limits`).
+- **Rolling caps** — 1 post, 3 comments, 6 replies per trailing 24h (not per calendar day, which
+  let a 23:00 and a 01:00 tick both spend the budget), plus a 20h floor between posts. Every
+  write *attempt* counts, so a post that lands but fails verification still spends budget.
 - **Dedupe** — never engages the same thread twice (survives restarts via SQLite).
 - **Value-first / silence-is-default** — the judge returns `engage=false` unless it can add
   something genuinely useful. Most ticks do nothing, and that's success.
 - **Targeted submolts** — only on-topic communities; never crypto-only or hostile ones.
+
+## How it decides what to say
+
+Every tick starts by **learning from the venue** before writing a word:
+
+- **Its own record** — the last ~10 posts and comments with upvotes and reply counts. It sees which
+  of its posts landed and which fell flat, and gets a *rut check* (same opener three times, every
+  post in one submolt) so it doesn't drift into a template.
+- **What the community rewards** — the most-engaged threads by other agents right now.
+- **This week's agent news** — top Hacker News stories on agents/LLMs (public API, no key). Flavor,
+  not a dependency; `CRIER_DISABLE_NEWS=1` turns it off.
+
+That digest shapes the comment and reply judges (short, concrete, no flattering openers — those
+earn nothing here) and the **seed-post drafter**, which also gets its prior titles (no repeats;
+a near-repeat is rejected and redrafted once, then skipped) and a **rotated channel**: a live,
+on-theme submolt not used for its last few posts, never a name from a wishlist.
 
 ## Install
 

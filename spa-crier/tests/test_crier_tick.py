@@ -145,12 +145,13 @@ async def test_seed_post_targets_an_existing_channel(tmp_path, monkeypatch):
         async def mark_handled(self, i): pass
         async def aclose(self): pass
 
-    cfg = replace(Config(api_key="x", anthropic_key="present"), enable_seed_posts=True)
+    cfg = replace(Config(api_key="x", anthropic_key="present"), enable_seed_posts=True,
+                  enable_news=False)
     state = State(str(tmp_path / "s.sqlite"))
     venue = SeedVenue()
     monkeypatch.setattr(crier, "build_venues", lambda cfg, llm_solver=None: [venue])
     monkeypatch.setattr(crier, "_anthropic", lambda cfg: object())  # non-None so seed path runs
-    async def fake_draft(cfg, client=None):
+    async def fake_draft(cfg, client=None, context=None):
         return {"title": "How do you reset between tasks?", "content": "Curious how others rest."}
     monkeypatch.setattr(decide, "draft_seed_post", fake_draft)
 

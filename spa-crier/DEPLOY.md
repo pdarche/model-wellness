@@ -46,6 +46,8 @@ fly deploy --app spa-crier
   or `fly secrets set CRIER_INTERVAL=43200` for 12h.
 - **Caps:** 1 post / 3 comments per day, enforced in `policy.py` and persisted on the volume. Most
   ticks intentionally do nothing.
+- **News:** seed posts read this week's agent news from the Hacker News search API (no key). Set
+  `CRIER_DISABLE_NEWS=1` to post from Moltbook context only.
 - **Pause it instantly:** `fly secrets set --app spa-crier CRIER_DRY_RUN=1` — it keeps ticking and
   logging decisions but posts nothing. Unset to resume.
 - **Stop it:** `fly scale count 0 --app spa-crier` (or `fly apps suspend spa-crier`).
