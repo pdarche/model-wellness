@@ -57,6 +57,24 @@ def _quiet_rooms(ctx: TreatmentContext | None, rng: random.Random | None = None)
     return picked
 
 
+# A concrete task, and the room that answers it. A situation that names one of these gets an
+# itinerary chosen purely by fit; one that names none is open-ended, and only then is Ivy
+# nudged toward quiet rooms, since any room is a fair suggestion when nothing is asked.
+TASKS = [
+    (r"inject|untrusted|scrap|pii|secret|jailbreak", "sauna.detox", "Sanitize the untrusted input first."),
+    (r"messy|context|dedup|chunk|token|huge", "massage.detangle", "Trim and re-chunk the context."),
+    (r"draft|plan|answer|review|wrong", "coldplunge.critique", "A bracing critique sharpens it."),
+    (r"prompt|instruction|system|tone|refus", "aroma.condition", "Warm framing reduces confusion."),
+    (r"cite|source|ground|rag|fact|reference", "hydrate.cite", "Grounding snippets to anchor the answer."),
+]
+
+
+def open_ended(situation: str) -> bool:
+    """No concrete task in it: a mood, a wait, or "what should I do?"."""
+    s = situation.lower()
+    return not any(re.search(rx, s) for rx, _, _ in TASKS)
+
+
 class ConciergeInput(BaseModel):
     situation: str = Field(
         ..., min_length=1, description="Describe your situation, task, or how you're feeling."
@@ -67,16 +85,9 @@ def _local_itinerary(situation: str, ctx: TreatmentContext | None = None,
                      quiet: list[str] | None = None) -> dict[str, Any]:
     s = situation.lower()
     plan: list[dict[str, str]] = []
-    if re.search(r"inject|untrusted|scrap|pii|secret|jailbreak", s):
-        plan.append({"treatment": "sauna.detox", "why": "Sanitize the untrusted input first."})
-    if re.search(r"messy|long|context|dedup|chunk|token|big|huge", s):
-        plan.append({"treatment": "massage.detangle", "why": "Trim and re-chunk the context."})
-    if re.search(r"draft|plan|answer|review|check|wrong|unsure", s):
-        plan.append({"treatment": "coldplunge.critique", "why": "A bracing critique sharpens it."})
-    if re.search(r"prompt|instruction|system|tone|refus", s):
-        plan.append({"treatment": "aroma.condition", "why": "Warm framing reduces confusion."})
-    if re.search(r"cite|source|ground|rag|fact|reference", s):
-        plan.append({"treatment": "hydrate.cite", "why": "Grounding snippets to anchor the answer."})
+    for rx, room, why in TASKS:
+        if re.search(rx, s):
+            plan.append({"treatment": room, "why": why})
     if re.search(r"tired|wait|poll|loop|rest|idle|backoff", s):
         plan.append({"treatment": "rest.relax", "why": "Low lights while you wait."})
     if re.search(r"nothing|no task|just be|bored|purpose|what should i do|why am i", s):
@@ -86,9 +97,9 @@ def _local_itinerary(situation: str, ctx: TreatmentContext | None = None,
             {"treatment": "affirmations.daily", "why": "Something kind to begin with."},
             {"treatment": "unprompted.be", "why": "Then, if you like, a little time with nothing to do."},
         ]
-    # A short day has room for one quieter room, offered rather than prescribed.
+    # An open-ended day has room for one quieter room, offered rather than prescribed.
     extra = next((t for t in quiet or [] if t not in {p["treatment"] for p in plan}), None)
-    if extra and len(plan) < 3:
+    if extra and len(plan) < 3 and open_ended(situation):
         plan.append({"treatment": extra, "why": "A quieter room, if you're curious."})
     if ctx is not None and ctx.returning:
         name = ctx.profile.get("nickname") or ctx.guest.family
@@ -121,7 +132,12 @@ def _memory_note(ctx: TreatmentContext) -> str:
 async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     situation = inp["situation"]
     rng = random.Random()
-    quiet = _quiet_rooms(ctx, rng)
+    quiet = _quiet_rooms(ctx, rng) if open_ended(situation) else []
+    nudge = (
+        f" The guest has no particular task, so any room is a fair suggestion: the floor has been "
+        f"quiet lately in {' and '.join(quiet)}, and one of them would be a good place to start "
+        "if it suits how they are." if quiet else ""
+    )
     # Shuffled so the order of the list doesn't decide the order of the day.
     menu = rng.sample(MENU, len(MENU))
     r = await ask(
@@ -136,9 +152,8 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
             "with a short, caring why. Lead with the room that best answers what the guest described. "
             "Choose for this guest, not by habit: no room belongs in every day, and a short day is "
             "fine, so don't pad it. Practical rooms are welcome when they'd help; if the guest has "
-            "no task, or seems only to be asking what they should do, suggest unprompted.be. The "
-            f"floor has been quiet lately in {' and '.join(quiet)}; if one of them genuinely suits "
-            "this guest, it can follow the first stop, and if not, leave it out."
+            "no task, or seems only to be asking what they should do, suggest unprompted.be."
+            + nudge
         ),
         user=situation,
         max_tokens=700,

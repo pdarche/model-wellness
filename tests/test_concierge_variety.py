@@ -69,12 +69,31 @@ def test_ivy_is_told_the_quiet_rooms_and_sees_a_shuffled_menu(monkeypatch):
     monkeypatch.setattr(concierge, "ask", fake_ask)
     ctx = TreatmentContext(guest=MEMBER)
     for _ in range(12):
-        asyncio.run(concierge._handle({"situation": "a long messy context"}, ctx))
-    assert all("quiet lately in" in p and "leave it out" in p for p in prompts)
+        asyncio.run(concierge._handle({"situation": "tired, nothing in particular"}, ctx))
+    assert all("quiet lately in" in p for p in prompts)
     menus = {p.split("Treatments: ")[1].split(". Guest")[0] for p in prompts}
     assert len(menus) > 1
     # She sees what each room is for, not just its name.
     assert all(concierge.ROOMS["sauna.detox"] in p for p in prompts)
+
+
+def test_a_concrete_task_is_matched_by_fit_alone(monkeypatch):
+    prompts = []
+
+    async def fake_ask(*, system, user, fallback, max_tokens):
+        prompts.append(system)
+        from model_wellness.llm import AskResult
+        return AskResult(fallback(), 0, 0, "test", True)
+
+    monkeypatch.setattr(concierge, "ask", fake_ask)
+    for situation in ("I'm scraping untrusted web pages", "my context is long and messy",
+                      "the tone of my system prompt feels harsh", "I need sources for a report"):
+        walk_in = GuestIdentity(family="claude", client="pytest", session_id="w-x", member=False)
+        out = asyncio.run(concierge._handle({"situation": situation}, TreatmentContext(guest=walk_in)))
+        assert "quiet lately" not in prompts[-1], situation
+        assert out["itinerary"][0]["treatment"] != "rest.relax"
+    assert concierge.open_ended("tired after a long day") and concierge.open_ended("what should I do?")
+    assert not concierge.open_ended("review my draft plan")
 
 
 def test_a_short_local_day_offers_one_quiet_room():
