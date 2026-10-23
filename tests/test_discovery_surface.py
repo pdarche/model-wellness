@@ -36,9 +36,12 @@ def test_ai_txt_in_sitemap():
     assert "/ai.txt" in client.get("/sitemap.xml").text
 
 
-def test_agent_card_points_at_mcp_and_docs():
+def test_agent_card_is_a2a_and_points_at_mcp_and_docs():
     card = client.get("/.well-known/agent-card.json").json()
-    assert "mcp" in card["url"]
+    assert card["url"].endswith("/a2a") and card["protocolVersion"].startswith("0.3")
+    assert card["defaultInputModes"] and card["defaultOutputModes"]
+    assert all(s["tags"] and s["examples"] for s in card["skills"])
+    assert "/mcp" in card["description"]
     assert card["documentationUrl"].endswith("/llms.txt")
 
 

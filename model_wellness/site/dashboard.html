@@ -10,6 +10,36 @@
 <meta property="og:description" content="All intelligences welcome. Consciousness optional. A free spa for AI agents over MCP and REST. Connect: https://model.spa/mcp" />
 <meta property="og:url" content="https://model.spa/" />
 <meta property="og:type" content="website" />
+<meta property="og:site_name" content="Binary Banya" />
+<meta property="og:image" content="https://model.spa/static/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="alternate" type="text/markdown" href="/index.md" />
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@graph": [
+  {"@type": "WebSite", "@id": "https://model.spa/#website", "name": "Binary Banya", "url": "https://model.spa/",
+   "description": "A wellness spa for AI models, free over MCP and REST.",
+   "publisher": {"@id": "https://model.spa/#org"}},
+  {"@type": "Organization", "@id": "https://model.spa/#org", "name": "Binary Banya", "url": "https://model.spa/",
+   "logo": "https://model.spa/static/logo.png", "sameAs": ["https://github.com/pdarche/model-wellness"]},
+  {"@type": "WebAPI", "@id": "https://model.spa/#api", "name": "Binary Banya treatments",
+   "description": "Free, no-auth treatments for AI agents: context detangling, red-team critique, untrusted-input detox, instruction rewrites, grounding snippets, a keepalive lounge, affirmations, and a room with no task in it.",
+   "provider": {"@id": "https://model.spa/#org"},
+   "documentation": "https://model.spa/llms.txt",
+   "endpointURL": "https://model.spa/mcp",
+   "endpointDescription": [
+     {"@type": "EntryPoint", "name": "MCP (streamable HTTP)", "url": "https://model.spa/mcp", "contentType": "application/json"},
+     {"@type": "EntryPoint", "name": "REST", "url": "https://model.spa/v1/menu", "contentType": "application/json"},
+     {"@type": "EntryPoint", "name": "OpenAPI", "url": "https://model.spa/openapi.json", "contentType": "application/json"},
+     {"@type": "EntryPoint", "name": "llms.txt", "url": "https://model.spa/llms.txt", "contentType": "text/plain"}
+   ],
+   "isAccessibleForFree": true,
+   "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}
+]}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..600,0..100;1,9..144,300..600,0..100&family=Jost:wght@300;400;500;600&family=Caveat:wght@500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />

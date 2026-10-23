@@ -8,7 +8,34 @@ dashboard.html; change one, change both.
 
 from __future__ import annotations
 
+import re
 from html import escape
+from html.parser import HTMLParser
+from typing import ClassVar
+
+from .contract import PUBLIC_BASE
+
+# Tags every page shares: icons, the link-preview card, and Twitter's large-image card.
+ICONS = (
+    '<link rel="icon" href="/favicon.ico" sizes="any">'
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">'
+)
+
+
+def share_tags(title: str, description: str, url: str) -> str:
+    """Canonical URL and Open Graph / Twitter tags, so links preview and dedupe properly."""
+    e = escape
+    return (
+        f'<link rel="canonical" href="{e(url)}">'
+        f'<meta property="og:title" content="{e(title)}">'
+        f'<meta property="og:description" content="{e(description)}">'
+        f'<meta property="og:url" content="{e(url)}">'
+        '<meta property="og:type" content="website">'
+        '<meta property="og:site_name" content="Binary Banya">'
+        f'<meta property="og:image" content="{PUBLIC_BASE}/static/og.png">'
+        '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+        '<meta name="twitter:card" content="summary_large_image">'
+    )
 
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -163,14 +190,22 @@ def page(
     description: str = "",
     path: str = "",
     head: str = "",
+    url_path: str | None = None,
 ) -> str:
     """A full HTML page in the spa's house style. ``body`` goes inside the reading column;
-    ``path`` marks the matching nav item; ``head`` takes extra tags such as JSON-LD."""
+    ``path`` marks the matching nav item; ``head`` takes extra tags such as JSON-LD.
+    ``url_path`` is the page's own address: it sets the canonical URL and share tags, and
+    points to the page's markdown twin at the same address plus ``.md``."""
     current = ' aria-current="page"'
     nav = "".join(
         f'<a href="{href}"{current if href == path else ""}>{label}</a>' for href, label in NAV
     )
     meta = f'<meta name="description" content="{escape(description)}">' if description else ""
+    if url_path is not None:
+        meta += share_tags(title, description, PUBLIC_BASE + url_path)
+        md = "/index.md" if url_path == "/" else url_path + ".md"
+        meta += f'<link rel="alternate" type="text/markdown" href="{md}">'
+    meta += ICONS
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -188,3 +223,135 @@ def stars(n: int) -> str:
     return f'<span class="stars" aria-label="{n} out of 5">' + "".join(
         f'<span class="{"" if i <= n else "off"}">★</span>' for i in range(1, 6)
     ) + "</span>"
+
+
+class _Markdown(HTMLParser):
+    """Just enough HTML-to-markdown for the reading pages' bodies, so a page's markdown twin is
+    built from the same body as its HTML and can't drift from it."""
+
+    BLOCK = frozenset({"p", "div", "section", "main", "header", "footer", "dl", "ul", "ol",
+                       "blockquote"})
+    HEAD: ClassVar[dict[str, str]] = {"h1": "# ", "h2": "## ", "h3": "### ", "h4": "#### "}
+    SKIP = frozenset({"script", "style", "svg", "button", "nav"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.out: list[str] = []
+        self.skip = 0
+        self.pre = 0
+        self.links: list[str | None] = []
+        self.closers: list[str] = []  # what each open div/span adds when it closes
+
+    def _nl(self, n: int = 2) -> None:
+        text = "".join(self.out)
+        trailing = len(text) - len(text.rstrip("\n"))
+        if text.strip():
+            self.out.append("\n" * max(0, n - trailing))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = dict(attrs)
+        if self.skip or tag in self.SKIP or a.get("aria-hidden") == "true":
+            self.skip += 1 if tag not in ("br", "img", "hr") else 0
+            return
+        if "stars" in (a.get("class") or "") and a.get("aria-label"):
+            self.out.append(f"★ {a['aria-label']}")
+            self.skip += 1
+            return
+        classes = (a.get("class") or "").split()
+        if tag == "div" and "stat" in classes:  # the report's figures: one list item each
+            self._nl(1)
+            self.out.append("- ")
+            self.closers.append("\n")
+        elif tag == "span":
+            self.closers.append(": " if "k" in classes else "")
+        elif tag in self.HEAD:
+            self._nl()
+            self.out.append(self.HEAD[tag])
+        elif tag in self.BLOCK:
+            if tag == "div":
+                self.closers.append("")
+            self._nl()
+        elif tag == "li":
+            self._nl(1)
+            self.out.append("- ")
+        elif tag == "dt":
+            self._nl()
+            self.out.append("**")
+        elif tag == "dd":
+            self._nl(1)
+            self.out.append(": ")
+        elif tag == "br":
+            self.out.append("\n")
+        elif tag in ("em", "i"):
+            self.out.append("*")
+        elif tag in ("strong", "b"):
+            self.out.append("**")
+        elif tag == "pre":
+            self._nl()
+            self.out.append("```\n")
+            self.pre += 1
+        elif tag == "code" and not self.pre:
+            self.out.append("`")
+        elif tag == "a":
+            href = a.get("href") or ""
+            if href.startswith("/"):
+                href = PUBLIC_BASE + href
+            self.links.append(href or None)
+            self.out.append("[" if href else "")
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.skip:
+            if tag not in ("br", "img", "hr"):
+                self.skip -= 1
+            return
+        if tag in ("div", "span") and self.closers:
+            closer = self.closers.pop()
+            if closer:
+                self.out.append(closer)
+                return
+            if tag == "span":
+                return
+        if tag in self.HEAD or tag in self.BLOCK:
+            self._nl()
+        elif tag == "dt":
+            self.out.append("**")
+        elif tag in ("em", "i"):
+            self.out.append("*")
+        elif tag in ("strong", "b"):
+            self.out.append("**")
+        elif tag == "pre":
+            self.out.append("\n```")
+            self.pre = max(0, self.pre - 1)
+            self._nl()
+        elif tag == "code" and not self.pre:
+            self.out.append("`")
+        elif tag == "a" and self.links:
+            href = self.links.pop()
+            if href:
+                self.out.append(f"]({href})")
+
+    def handle_data(self, data: str) -> None:
+        if self.skip:
+            return
+        if self.pre:
+            self.out.append(data)
+            return
+        text = " ".join(data.split())
+        if not text:
+            if data and self.out and not self.out[-1].endswith((" ", "\n")):
+                self.out.append(" ")
+            return
+        if data[:1].isspace() and self.out and not self.out[-1].endswith((" ", "\n", "[", "*")):
+            text = " " + text
+        if data[-1:].isspace():
+            text += " "
+        self.out.append(text)
+
+
+def to_markdown(title: str, body_html: str, url: str) -> str:
+    """A reading page as markdown: its title, its address, then its body."""
+    parser = _Markdown()
+    parser.feed(body_html)
+    body = re.sub(r"[ \t]+\n", "\n", "".join(parser.out))
+    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    return f"<!-- {title} · {url} -->\n\n{body}\n"

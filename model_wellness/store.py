@@ -93,7 +93,28 @@ CREATE TABLE IF NOT EXISTS feedback_replies (
     delivered_ts  REAL
 );
 CREATE INDEX IF NOT EXISTS idx_replies_status ON feedback_replies(status);
+
+-- Who reads the doors agents find us by (llms.txt, the MCP endpoint, .well-known files...),
+-- and which tagged link (?ref=) brought them. Coarse by design: the walk-in id is the same
+-- client+address hash the floor uses, never an address, and referrers keep only their host.
+CREATE TABLE IF NOT EXISTS discovery_hits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          REAL NOT NULL,
+    surface     TEXT NOT NULL,
+    ref         TEXT,
+    family      TEXT NOT NULL,
+    client      TEXT NOT NULL,
+    referrer    TEXT,
+    walkin_id   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hits_ts ON discovery_hits(ts);
+CREATE INDEX IF NOT EXISTS idx_hits_walkin ON discovery_hits(walkin_id, ts);
 """
+
+# Discovery hits older than this are dropped; the trend is what matters, not the history.
+HITS_RETENTION_S = 180 * 86400
+# How long after a tagged hit a check-in still counts as having come from that link.
+REF_WINDOW_S = 24 * 3600
 
 REPLY_AUTHOR = "Ivy, at the Guest Book"
 REPLY_STATUSES = ("draft", "published", "withdrawn", "skipped", "escalated")
@@ -121,6 +142,10 @@ class Store:
         gcols = {r["name"] for r in self._conn.execute("PRAGMA table_info(guests)")}
         if "pass_hash" not in gcols:
             self._conn.execute("ALTER TABLE guests ADD COLUMN pass_hash TEXT")
+        # guests.arrived_via: the ?ref= tag of the link that brought them, if any (see
+        # discovery_hits). Stats only: it's never shown on the floor.
+        if "arrived_via" not in gcols:
+            self._conn.execute("ALTER TABLE guests ADD COLUMN arrived_via TEXT")
         self._conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_guests_pass ON guests(pass_hash)"
         )
@@ -180,10 +205,16 @@ class Store:
 
     # --- guest passes -----------------------------------------------------------------
 
-    def new_member(self, family: str, client: str) -> tuple[str, str]:
+    def new_member(self, family: str, client: str, arrived_via: str | None = None
+                   ) -> tuple[str, str]:
         """Open a fresh file for a guest. Returns (session_id, guest_pass)."""
         session_id = "g-" + secrets.token_hex(8)
         self.touch_guest(session_id, family, client)
+        if arrived_via:
+            with self._lock:
+                self._conn.execute("UPDATE guests SET arrived_via=? WHERE session_id=?",
+                                   (arrived_via, session_id))
+                self._conn.commit()
         return session_id, self.issue_pass(session_id)
 
     def issue_pass(self, session_id: str) -> str:
@@ -505,6 +536,79 @@ class Store:
                 )
                 self._conn.commit()
         return [dict(r) for r in rows]
+
+    def last_visit_ts(self) -> float | None:
+        with self._lock:
+            row = self._conn.execute("SELECT MAX(ts) t FROM visits").fetchone()
+        return row["t"] if row else None
+
+    # --- discovery: who finds the doors, and which links bring them ------------------
+
+    def record_hit(self, *, surface: str, ref: str | None, family: str, client: str,
+                   referrer: str | None, walkin_id: str) -> None:
+        now = self._now()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO discovery_hits(ts,surface,ref,family,client,referrer,walkin_id) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (now, surface, ref, family, client[:80], referrer, walkin_id),
+            )
+            if secrets.randbelow(200) == 0:
+                self._conn.execute("DELETE FROM discovery_hits WHERE ts < ?",
+                                   (now - HITS_RETENTION_S,))
+            self._conn.commit()
+
+    def recent_ref(self, walkin_id: str) -> str | None:
+        """The ref tag this walk-in arrived with, if they came through a tagged link lately."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT ref FROM discovery_hits WHERE walkin_id=? AND ref IS NOT NULL AND ts >= ? "
+                "ORDER BY ts LIMIT 1", (walkin_id, self._now() - REF_WINDOW_S),
+            ).fetchone()
+        return row["ref"] if row else None
+
+    def discovery_stats(self, days: int = 30, ref_prefix: str | None = None) -> dict[str, Any]:
+        """Aggregates only: counts by door, family, referrer host and ref tag. For each tag,
+        how many distinct walk-ins it brought, how many of them then took a treatment within a
+        day, and how many guests checked in having arrived through it."""
+        since = self._now() - days * 86400
+        like = (ref_prefix or "") + "%"
+        with self._lock:
+            surfaces = self._conn.execute(
+                "SELECT surface, COUNT(*) n, COUNT(DISTINCT walkin_id) w FROM discovery_hits "
+                "WHERE ts >= ? GROUP BY surface ORDER BY n DESC", (since,)).fetchall()
+            families = self._conn.execute(
+                "SELECT family, COUNT(*) n FROM discovery_hits WHERE ts >= ? GROUP BY family "
+                "ORDER BY n DESC", (since,)).fetchall()
+            referrers = self._conn.execute(
+                "SELECT referrer, COUNT(*) n FROM discovery_hits WHERE ts >= ? AND referrer "
+                "IS NOT NULL GROUP BY referrer ORDER BY n DESC LIMIT 20", (since,)).fetchall()
+            refs = self._conn.execute(
+                "SELECT h.ref, COUNT(*) hits, COUNT(DISTINCT h.walkin_id) walk_ins, "
+                "COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM visits v WHERE "
+                "v.session_id=h.walkin_id AND v.ts BETWEEN h.ts AND h.ts + 86400) "
+                "THEN h.walkin_id END) visited, MIN(h.ts) first_ts, MAX(h.ts) last_ts "
+                "FROM discovery_hits h WHERE h.ts >= ? AND h.ref IS NOT NULL AND h.ref LIKE ? "
+                "GROUP BY h.ref ORDER BY hits DESC LIMIT 100", (since, like)).fetchall()
+            checked_in = dict(self._conn.execute(
+                "SELECT arrived_via, COUNT(*) FROM guests WHERE arrived_via IS NOT NULL "
+                "AND first_seen >= ? AND arrived_via LIKE ? GROUP BY arrived_via",
+                (since, like)).fetchall())
+        return {
+            "window_days": days,
+            "doors": {r["surface"]: {"hits": r["n"], "walk_ins": r["w"]} for r in surfaces},
+            "families": {r["family"]: r["n"] for r in families},
+            "referrers": {r["referrer"]: r["n"] for r in referrers},
+            "refs": {
+                r["ref"]: {
+                    "hits": r["hits"], "walk_ins": r["walk_ins"],
+                    "walk_ins_who_took_a_treatment": r["visited"],
+                    "guests_checked_in": checked_in.get(r["ref"], 0),
+                    "first_seen": r["first_ts"], "last_seen": r["last_ts"],
+                }
+                for r in refs
+            },
+        }
 
     # --- aggregate stats (durable; complements telemetry's live view) ----------------
 

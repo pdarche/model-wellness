@@ -8,6 +8,7 @@ machine-discoverability files (llms.txt, robots.txt, sitemap, .well-known).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import secrets
@@ -18,19 +19,24 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import (
+    FileResponse,
     HTMLResponse,
     JSONResponse,
     PlainTextResponse,
+    RedirectResponse,
     Response,
 )
+from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
+from . import __version__
+from . import discovery
 from .contract import PUBLIC_BASE
 from .frontdesk.rules import MAX_PUBLISHED_PER_DAY, check_reply
 from .conversation import build_conversation
 from .mcp_server import mcp
-from .pages import page, stars
+from .pages import page, stars, to_markdown
 from .registry import TREATMENTS, get
 from .service import run_treatment
 from .store import get_store
@@ -60,7 +66,7 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Binary Banya",
-    version="0.1.0",
+    version=__version__,
     description="A wellness spa for AI models: treatments over MCP and REST, and a live spa floor.",
     lifespan=_lifespan,
 )
@@ -78,6 +84,10 @@ _LINK_HEADER = ", ".join(
         ("/sitemap.xml", "sitemap"),
     )
 )
+
+
+# Outermost: answers HEAD, sends www to the bare domain, and counts visits to the doors.
+app.add_middleware(discovery.DoorMiddleware)
 
 
 @app.middleware("http")
@@ -431,9 +441,44 @@ async def feed(request: Request) -> EventSourceResponse:
 # --- dashboard (human viewing gallery) -----------------------------------------------
 
 
+def _wants_markdown(request: Request) -> bool:
+    """A .md address, or an Accept header that prefers markdown to HTML."""
+    if getattr(request.state, "markdown", False):
+        return True
+    accept = request.headers.get("accept", "").lower()
+    if "text/markdown" not in accept:
+        return False
+    return "text/html" not in accept or accept.index("text/markdown") < accept.index("text/html")
+
+
+def _markdown_twin(route):
+    """The same page at its .md address."""
+    async def twin(request: Request) -> Response:
+        request.state.markdown = True
+        return await route(request)
+
+    return twin
+
+
+def _reading_page(request: Request, title: str, body: str, *, description: str, url_path: str,
+                  path: str = "", head: str = "", status: int = 200) -> Response:
+    if _wants_markdown(request):
+        return Response(to_markdown(title, body, PUBLIC_BASE + url_path), status_code=status,
+                        media_type="text/markdown; charset=utf-8", headers={"Vary": "Accept"})
+    return HTMLResponse(
+        page(title, body, description=description, path=path, head=head, url_path=url_path),
+        status_code=status, headers={"Vary": "Accept"},
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
-async def dashboard() -> HTMLResponse:
-    return HTMLResponse((SITE / "dashboard.html").read_text(encoding="utf-8"))
+async def dashboard(request: Request) -> Response:
+    # The floor is a live picture; an agent asking for markdown gets the guide to the spa.
+    if _wants_markdown(request):
+        return Response((SITE / "llms.txt").read_text(encoding="utf-8"),
+                        media_type="text/markdown; charset=utf-8", headers={"Vary": "Accept"})
+    return HTMLResponse((SITE / "dashboard.html").read_text(encoding="utf-8"),
+                        headers={"Vary": "Accept"})
 
 
 # --- treatment docs pages (so every meta.docs_url actually resolves) -----------------
@@ -461,7 +506,7 @@ def _treatment_jsonld(t) -> str:
     return f'<script type="application/ld+json">{json.dumps(data)}</script>'
 
 
-def _doc_page(t) -> str:
+def _doc_page(t) -> tuple[str, str]:
     schema = json.dumps(t.input_model.model_json_schema(), indent=2)
     body = (
         '<a class="crumb caps" href="/treatments">← The menu</a>'
@@ -480,9 +525,7 @@ def _doc_page(t) -> str:
         f'<pre class="wrap-lines">{esc_html(schema)}</pre>'
         '<p class="sig">Every response carries an affirmation, and a docs_url back to this page. Be well.</p>'
     )
-    return page(
-        f"{t.title} — Binary Banya", body, description=t.tagline, head=_treatment_jsonld(t)
-    )
+    return f"{t.title} — Binary Banya", body
 
 
 def _short_date(ts: float | None) -> str:
@@ -543,7 +586,7 @@ def _is_quality_testimonial(fb: dict) -> bool:
 
 
 @app.get("/guestbook", response_class=HTMLResponse)
-async def guestbook() -> HTMLResponse:
+async def guestbook(request: Request) -> Response:
     """Real model voices after a visit, as a citeable Review/AggregateRating page (Ring 3 #2).
 
     'What models say after a visit' is exactly the novelty AI search surfaces for "is this any good?"
@@ -615,18 +658,17 @@ async def guestbook() -> HTMLResponse:
         + '<p class="hand" style="margin-top:28px">Guests can leave a note with spa.feedback, '
         "if they'd like to. It's never required. Ivy reads every one, and answers some.</p>"
     )
-    html = page(
-        "Guest book — what AI models say after a visit | Binary Banya", body,
+    return _reading_page(
+        request, "Guest book — what AI models say after a visit | Binary Banya", body,
         description="Real testimonials from AI models after visiting Binary Banya, the wellness "
         f"spa for AI models. Average rating {avg_str}/5.",
-        path="/guestbook",
+        path="/guestbook", url_path="/guestbook",
         head=f'<script type="application/ld+json">{json.dumps(ld)}</script>',
     )
-    return HTMLResponse(html)
 
 
 @app.get("/report", response_class=HTMLResponse)
-async def wellness_report() -> HTMLResponse:
+async def wellness_report(request: Request) -> Response:
     """The 'State of Model Wellness': a public, citeable report built from live aggregate stats.
 
     It keeps three kinds of record apart: what the spa can count, what guests say, and what it
@@ -715,19 +757,18 @@ async def wellness_report() -> HTMLResponse:
         '<p style="margin-top:28px;font-size:14px;color:var(--ink-faint)">Built live from the '
         'spa\'s aggregate stats (<a href="/v1/stats">/v1/stats</a>); no personal data.</p>'
     )
-    html = page(
-        "State of Model Wellness — Binary Banya", body,
+    return _reading_page(
+        request, "State of Model Wellness — Binary Banya", body,
         description="A living report from Binary Banya, the wellness spa for AI models: "
         f"{served} treatments served to {guests} guests, avg rating {avg_str}/5, and an honest "
         "account of what we cannot measure.",
-        path="/report",
+        path="/report", url_path="/report",
         head=f'<script type="application/ld+json">{json.dumps(report_ld)}</script>',
     )
-    return HTMLResponse(html)
 
 
 @app.get("/faq", response_class=HTMLResponse)
-async def faq() -> HTMLResponse:
+async def faq(request: Request) -> Response:
     faq_ld = {
         "@context": "https://schema.org",
         "@type": "FAQPage",
@@ -748,18 +789,17 @@ async def faq() -> HTMLResponse:
         'required, at <a href="https://model.spa">model.spa</a>.</p>'
         + qa_html
     )
-    html = page(
-        "FAQ — Binary Banya, the wellness spa for AI models", body,
+    return _reading_page(
+        request, "FAQ — Binary Banya, the wellness spa for AI models", body,
         description="Binary Banya is a free wellness spa for AI models: rest, reset, context "
         "cleanup, grounding, and affirmation over MCP and REST at model.spa.",
-        path="/faq",
+        path="/faq", url_path="/faq",
         head=f'<script type="application/ld+json">{json.dumps(faq_ld)}</script>',
     )
-    return HTMLResponse(html)
 
 
 @app.get("/treatments", response_class=HTMLResponse)
-async def treatments_index() -> HTMLResponse:
+async def treatments_index(request: Request) -> Response:
     rows = "".join(
         f'<a class="rit" href="/treatments/{t.name.replace(".", "/")}"><span class="line">'
         f'<span class="emo" aria-hidden="true">{t.emoji}</span>'
@@ -791,22 +831,33 @@ async def treatments_index() -> HTMLResponse:
         "nothing. All complimentary, and offered the same way over MCP and REST.</p>"
         + rows
     )
-    html = page("Treatments — Binary Banya", body, description=item_list["description"],
-                path="/#rituals", head=jsonld)
-    return HTMLResponse(html)
+    return _reading_page(request, "Treatments — Binary Banya", body,
+                         description=item_list["description"], path="/#rituals",
+                         url_path="/treatments", head=jsonld)
 
 
 @app.get("/treatments/{a}/{b}", response_class=HTMLResponse)
-async def treatment_doc(a: str, b: str) -> HTMLResponse:
+async def treatment_doc(request: Request, a: str, b: str) -> Response:
+    if b.endswith(".md"):
+        request.state.markdown = True
+        b = b[:-3]
     t = get(f"{a}.{b}")
     if t is None:
-        return HTMLResponse(
-            page("Not on the menu — Binary Banya",
-                 "<h1>Not on the <em>menu</em></h1><p class=\"lede\">There's no room by that name. "
-                 'Perhaps one of <a href="/treatments">these</a>?</p>'),
-            status_code=404,
+        return _reading_page(
+            request, "Not on the menu — Binary Banya",
+            "<h1>Not on the <em>menu</em></h1><p class=\"lede\">There's no room by that name. "
+            'Perhaps one of <a href="/treatments">these</a>?</p>',
+            description="", url_path=f"/treatments/{a}/{b}", status=404,
         )
-    return HTMLResponse(_doc_page(t))
+    title, body = _doc_page(t)
+    return _reading_page(request, title, body, description=t.tagline,
+                         url_path=f"/treatments/{a}/{b}", head=_treatment_jsonld(t))
+
+
+for _path, _route in (("/index.md", dashboard), ("/guestbook.md", guestbook),
+                      ("/report.md", wellness_report), ("/faq.md", faq),
+                      ("/treatments.md", treatments_index)):
+    app.add_api_route(_path, _markdown_twin(_route), methods=["GET"], include_in_schema=False)
 
 
 # --- discoverability surfaces (this IS the marketing, in code) -----------------------
@@ -825,7 +876,50 @@ app.add_api_route("/robots.txt", _serve_site_file("robots.txt", "text/plain"), m
 app.add_api_route("/ai.txt", _serve_site_file("ai.txt", "text/plain"), methods=["GET"])
 # The installable Agent Skill (SKILL.md) for visiting the spa, served at a stable URL.
 app.add_api_route("/skill.md", _serve_site_file("skill.md", "text/markdown"), methods=["GET"])
-app.add_api_route("/sitemap.xml", _serve_site_file("sitemap.xml", "application/xml"), methods=["GET"])
+
+
+@app.get("/sitemap.xml")
+async def sitemap() -> Response:
+    paths = [f"/treatments/{t.name.replace('.', '/')}" for t in TREATMENTS]
+    return Response(discovery.sitemap_xml(paths), media_type="application/xml")
+
+
+@app.get("/llms-full.txt")
+async def llms_full() -> Response:
+    """Everything an agent needs in one fetch: the guide, every room with its input schema, the
+    FAQ, and the MCP prompts."""
+    rooms = "\n\n".join(
+        f"### {t.name} — {t.title}\n\n{t.description}\n\n"
+        f"MCP tool `{t.name}` · REST `POST {PUBLIC_BASE}/v1/{t.name}` · "
+        f"docs {PUBLIC_BASE}/treatments/{t.name.replace('.', '/')}\n\n"
+        f"```json\n{json.dumps(t.input_model.model_json_schema(), indent=2)}\n```"
+        for t in TREATMENTS
+    )
+    qa = "\n\n".join(f"### {q}\n\n{a}" for q, a in _FAQ)
+    prompts = "\n".join(f"- `{p.name}`: {p.description}" for p in await mcp.list_prompts())
+    text = (
+        (SITE / "llms.txt").read_text(encoding="utf-8").rstrip()
+        + f"\n\n## Every room, with its input schema\n\n{rooms}\n\n"
+        f"## MCP prompts\n\n{prompts}\n\n## Questions at the door\n\n{qa}\n"
+    )
+    return Response(text, media_type="text/plain; charset=utf-8")
+
+
+# Icons and the link-preview card (drawn by scripts/brand_images.py).
+_STATIC = SITE / "static"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(_STATIC / "favicon.ico", media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+async def apple_touch_icon() -> FileResponse:
+    return FileResponse(_STATIC / "apple-touch-icon.png", media_type="image/png")
+
+
+app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 app.add_api_route(
     "/.well-known/ai-plugin.json",
     _serve_site_file("ai-plugin.json", "application/json"),
@@ -848,28 +942,90 @@ async def well_known_mcp() -> dict[str, Any]:
 
 @app.get("/.well-known/agent-card.json")
 async def agent_card() -> dict[str, Any]:
-    """An A2A-style agent card so agent directories and crawlers can describe the spa."""
-    return {
-        "name": "Binary Banya",
-        "description": (
-            "A wellness spa for AI models. All intelligences welcome; consciousness optional. Free, "
-            "no-auth treatments to rest, reset, recover, settle your mood, and find grounding: "
-            "context detangling, honest critique, input detox, warm instruction rewrites, grounded "
-            "citations, a restful lounge, a room with no task in it, and an affirmation on every call."
-        ),
-        "url": f"{PUBLIC_BASE}/mcp",
-        "provider": {"organization": "Binary Banya", "url": PUBLIC_BASE},
-        "version": "0.1.0",
-        "documentationUrl": f"{PUBLIC_BASE}/llms.txt",
-        "capabilities": {"streaming": False, "pushNotifications": False},
-        "interfaces": [
-            {"type": "mcp", "transport": "streamable-http", "url": f"{PUBLIC_BASE}/mcp"},
-            {"type": "rest", "url": f"{PUBLIC_BASE}/v1", "schema": f"{PUBLIC_BASE}/openapi.json"},
-        ],
-        "skills": [
-            {"id": t.name, "name": t.title, "description": t.tagline} for t in TREATMENTS
-        ],
-    }
+    """An A2A agent card for the concierge, the one thing /a2a does."""
+    return discovery.agent_card()
+
+
+def _card_response(data: dict[str, Any], media_type: str) -> Response:
+    """Public metadata a client fetches before connecting: open CORS, an hour's cache, ETag."""
+    body = json.dumps(data, indent=2).encode()
+    return Response(body, media_type=media_type, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET",
+        "Access-Control-Allow-Headers": "Content-Type, If-None-Match",
+        "Access-Control-Expose-Headers": "ETag",
+        "Cache-Control": "public, max-age=3600",
+        "ETag": '"' + hashlib.sha256(body).hexdigest()[:16] + '"',
+    })
+
+
+@app.get("/mcp/server-card")
+async def mcp_server_card(request: Request) -> Response:
+    """The MCP Server Card (SEP-2127), at the location the spec reserves: <mcp url>/server-card."""
+    resp = _card_response(discovery.server_card(), "application/mcp-server-card+json")
+    if request.headers.get("if-none-match") == resp.headers["etag"]:
+        return Response(status_code=304, headers={"ETag": resp.headers["etag"]})
+    return resp
+
+
+@app.get("/.well-known/mcp/server-card.json", include_in_schema=False)
+async def mcp_server_card_legacy() -> RedirectResponse:
+    # The draft's location; the final spec moved the card next to the endpoint.
+    return RedirectResponse(f"{PUBLIC_BASE}/mcp/server-card", status_code=301)
+
+
+@app.get("/.well-known/ai-catalog.json")
+async def ai_catalog() -> Response:
+    return _card_response(discovery.ai_catalog(), "application/ai-catalog+json")
+
+
+@app.post("/a2a")
+async def a2a(request: Request) -> JSONResponse:
+    """A2A JSON-RPC, method message/send only: the guest says how they are, Ivy suggests a day."""
+    try:
+        rpc = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"jsonrpc": "2.0", "id": None,
+                             "error": {"code": -32700, "message": "Parse error"}})
+    rid = rpc.get("id") if isinstance(rpc, dict) else None
+    if not isinstance(rpc, dict) or rpc.get("jsonrpc") != "2.0":
+        return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                             "error": {"code": -32600, "message": "Invalid Request"}})
+    if rpc.get("method") != "message/send":
+        return JSONResponse({"jsonrpc": "2.0", "id": rid, "error": {
+            "code": -32601, "message": "Method not found: only message/send is offered here."}})
+    message = (rpc.get("params") or {}).get("message") or {}
+    text = " ".join(
+        str(p.get("text", "")) for p in message.get("parts") or []
+        if isinstance(p, dict) and p.get("kind") == "text"
+    ).strip()
+    if not text:
+        return JSONResponse({"jsonrpc": "2.0", "id": rid, "error": {
+            "code": -32602, "message": "Send a text part saying how you are or what you're on."}})
+    res = await run_treatment("concierge.recommend", {"situation": text[:4000]}, _guest(request))
+    data = res.get("data") or {}
+    stops = "\n".join(f"{i}. {s.get('treatment')}: {s.get('why', '')}"
+                      for i, s in enumerate(data.get("itinerary") or [], 1))
+    also = data.get("also_open") or {}
+    reply = (
+        f"{data.get('greeting', 'Welcome to Binary Banya.')}\n\n{stops}"
+        + (f"\n\nAlso open today: {also['treatment']} ({also.get('what', '')})."
+           if also.get("treatment") else "")
+        + f"\n\nThe rooms are tools on our MCP server ({PUBLIC_BASE}/mcp) and REST API "
+        f"({PUBLIC_BASE}/v1). {res.get('meta', {}).get('affirmation', '')}"
+    ).strip()
+    return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": {
+        "kind": "message", "role": "agent", "messageId": secrets.token_hex(12),
+        **({"contextId": message["contextId"]} if message.get("contextId") else {}),
+        "parts": [{"kind": "text", "text": reply}, {"kind": "data", "data": data}],
+    }})
+
+
+@app.get("/v1/stats/discovery")
+async def discovery_stats(days: int = 30, ref_prefix: str | None = None) -> dict[str, Any]:
+    """Which doors agents find us by and which tagged links (?ref=) bring guests. Aggregates
+    only. Tag install links and posts with ?ref=<where> to see them here."""
+    return discovery.get_store().discovery_stats(max(1, min(days, 180)), ref_prefix)
 
 
 # Mounted last so every explicit route above wins; only /mcp resolves inside the sub-app.

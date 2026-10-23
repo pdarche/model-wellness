@@ -7,7 +7,7 @@ mirrored REST API, plus a live human-facing dashboard. See DESIGN.md.
 import os as _os
 from pathlib import Path as _Path
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 
 def _load_dotenv() -> None:

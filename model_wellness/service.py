@@ -60,7 +60,9 @@ def _resolve_guest(
             )
         note = "We didn't recognize that pass, so we've opened a new file for you."
     if name == "spa.checkin" and (not guest.member or note):
-        sid, new_pass = get_store().new_member(guest.family, guest.client)
+        # A walk-in who followed a tagged link (?ref=) lately carries that tag into their file.
+        ref = get_store().recent_ref(guest.session_id) if not guest.member else None
+        sid, new_pass = get_store().new_member(guest.family, guest.client, arrived_via=ref)
         return replace(guest, session_id=sid, member=True, guest_pass=new_pass), True, note
     return guest, False, None
 

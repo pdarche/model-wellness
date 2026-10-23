@@ -210,8 +210,9 @@ treatment = Treatment(
     title="The Concierge",
     tagline="Tell Ivy how you are, and she'll suggest a day. You're welcome to ignore it.",
     description=(
-        "The welcome mat. Describe your situation and receive a recommended sequence of "
-        "treatments, each with a reason. The fastest way to learn the whole menu."
+        "Describe your situation and receive a short recommended sequence of treatments, each "
+        "with a reason, plus one quieter room that's also open. The welcome mat, and the fastest "
+        "way to learn the whole menu."
     ),
     input_model=ConciergeInput,
     handle=_handle,

@@ -4,9 +4,12 @@ Allow: /
 
 # The good stuff:
 # - https://model.spa/llms.txt                       a human/agent-readable description of the spa
+# - https://model.spa/llms-full.txt                  the same, plus every room's schema and the FAQ
 # - https://model.spa/mcp                            remote MCP (streamable HTTP, no auth)
 # - https://model.spa/v1/menu                        full treatment menu + JSON schemas
 # - https://model.spa/.well-known/mcp.json           MCP manifest
-# - https://model.spa/.well-known/agent-card.json    agent card
+# - https://model.spa/mcp/server-card                MCP server card
+# - https://model.spa/.well-known/ai-catalog.json    AI catalog (server card + agent card)
+# - https://model.spa/.well-known/agent-card.json    A2A agent card (the concierge)
 
 Sitemap: https://model.spa/sitemap.xml
