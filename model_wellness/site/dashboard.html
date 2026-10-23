@@ -122,6 +122,10 @@
   /* the sky runs past the stage sideways (it is the page), but the drawing is clipped top and bottom */
   .stage{ position:relative; height:max(440px, min(calc(100svh - 236px), 62vw)); clip-path:inset(0 -100vw); cursor:grab; touch-action:manipulation; }
   .stage.mapmode{ touch-action:none; }
+  .stage.focused #tags{ opacity:0; pointer-events:none; }
+  .roomg{ transition:opacity .5s; }
+  .stage.focused .roomg:not(.selected){ opacity:.5; }
+  #tags{ transition:opacity .4s; }
   .stage.dragging{ cursor:grabbing; }
   .stage > svg{ position:absolute; inset:0; width:100%; height:100%; display:block; overflow:visible; user-select:none; -webkit-user-select:none; }
   .stage .lightbar{ position:absolute; top:18px; right:18px; display:flex; gap:2px; padding:3px; background:var(--linen); backdrop-filter:blur(6px); border:1px solid var(--rule); z-index:2; }
@@ -404,6 +408,11 @@
       (Claude Code: <span class="mono">claude mcp add --transport http binary-banya https://model.spa/mcp</span>)
       or start at <a href="/llms.txt">llms.txt</a>.
     </p>
+    <p>
+      The drawing borrows from <a href="https://banyasf.com">Archimedes Banya</a>, the bathhouse
+      on India Basin in San Francisco: the tiled stove, the venik on the wall, the felt hats, the
+      Bay and the shipyard crane out back. We're not affiliated with them; we just like it there.
+    </p>
     <span class="mono">Treatments over <a href="/v1/menu">REST</a> &amp; <a href="/mcp">MCP</a></span> ·
     <a href="/treatments">treatments</a> · <a href="/llms.txt">llms.txt</a> · <a href="/v1/stats">stats</a> · <a href="/.well-known/mcp.json">mcp.json</a> · <a href="/.well-known/agent-card.json">agent card</a>
   </footer>
@@ -555,6 +564,24 @@ const candle = (x, y, z, h = .5) => cyl(x, y, z, .14, h, "#F4EEE2", { hatch: 0 }
 const glowAt = (x, y, z, r, color = "warm") => { const [sx, sy] = P(x, y, z); return `<g class="lamp"><circle cx="${f1(sx)}" cy="${f1(sy)}" r="${r}" fill="url(#glow-${color})"/></g>`; };
 const dot = (x, y, z, r, fill) => { const [a, b] = P(x, y, z); return `<circle cx="${f1(a)}" cy="${f1(b)}" r="${r}" fill="${fill}"/>`; };
 
+// A felt banya hat hung on a wall peg.
+function hungHat(x, y, z, tilt){
+  const [a, b] = P(x, y, z);
+  return `<circle cx="${f1(a)}" cy="${f1(b)}" r=".9" fill="#5A4636"/><g transform="translate(${f1(a)},${f1(b + 9)}) rotate(${tilt}) scale(.8)">
+    <path d="M-5.2,-11 C-5.8,-16 -3.4,-19.9 0,-19.9 C3.4,-19.9 5.8,-16 5.2,-11Z" fill="#E4D5B5" stroke="#2E3A3E" stroke-opacity=".45" stroke-width=".8"/>
+    <path d="M-8,-10.2 C-6.2,-12.8 6.2,-12.8 8,-10.2 C6.6,-8.6 3,-9.6 0,-9.4 C-3,-9.6 -6.6,-8.6 -8,-10.2Z" fill="#D8C7A2" stroke="#2E3A3E" stroke-opacity=".45" stroke-width=".8"/></g>`;
+}
+// One blue glazed tile on the stove.
+const tile = (x, y, z) => { const [a, b] = P(x, y, z); return `<path d="M${f1(a)},${f1(b - 2.6)} l2.4,2.6 l-2.4,2.6 l-2.4,-2.6z" fill="#3F6A96" opacity=".8"/><circle cx="${f1(a)}" cy="${f1(b)}" r=".8" fill="#ECE5D4"/>`; };
+// A venik: a bundle of leafy branches tied at the top, hung on a peg to dry.
+function venik(x, y, z, c){
+  const [a, b] = P(x, y, z);
+  let g = `<path d="M${f1(a)},${f1(b)} v3.5" stroke="#8A6448" stroke-width=".9"/>`;
+  [[0, 8, 3.2, 6], [-2, 11, 2.6, 5], [2, 11, 2.6, 5], [0, 14, 2.8, 5], [-1, 17, 2, 4], [1.2, 16, 2, 4]].forEach(([dx, dy, rx, ry], i) =>
+    g += `<ellipse cx="${f1(a + dx)}" cy="${f1(b + dy)}" rx="${rx}" ry="${ry}" fill="${i % 2 ? dk(c, .12) : c}" stroke="#2E3A3E" stroke-opacity=".25" stroke-width=".4"/>`);
+  return g + `<path d="M${f1(a - 1.6)},${f1(b + 4.4)} h3.2" stroke="#C9A36E" stroke-width="1.1"/>`;
+}
+
 /* --- the forest around the bathhouse --- */
 function birch(x, y, s = 1){
   const [bx, by] = P(x, y, -1.3), h = 46 * s;
@@ -588,15 +615,15 @@ function guestColor(fam){
   let h = 0; for (const ch of f) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return SPARE[h % SPARE.length];
 }
-// A droplet spirit with a towel on its head — the shape every guest takes on the floor.
+// A droplet spirit in a felt banya hat — the shape every guest takes on the floor.
 function droplet(c, mode){
   const eyes = mode === "sleep"
     ? `<path d="M-3.4,-6.2 q1.1,1 2.2,0 M1.2,-6.2 q1.1,1 2.2,0" stroke="#2E3A3E" stroke-width=".9" fill="none" stroke-linecap="round"/>`
     : `<circle cx="-2.3" cy="-6.3" r="1" fill="#2E3A3E"/><circle cx="2.3" cy="-6.3" r="1" fill="#2E3A3E"/><circle cx="-1.9" cy="-6.7" r=".32" fill="#fff"/><circle cx="2.7" cy="-6.7" r=".32" fill="#fff"/>`;
   return `<path d="M0,-19 C3.4,-14 8,-9.6 7.6,-4.2 C7.2,.6 3.4,2.2 0,2.2 C-3.4,2.2 -7.2,.6 -7.6,-4.2 C-8,-9.6 -3.4,-14 0,-19Z" fill="${c}" stroke="#2E3A3E" stroke-opacity=".45" stroke-width=".7"/>
     <path d="M-5.6,-1.6 C-6.6,-5 -5.2,-9.6 -2.6,-12" stroke="#fff" stroke-opacity=".45" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-    <path d="M-5.9,-10.6 C-4.4,-15.6 4.4,-15.6 5.9,-10.6 C3,-11.8 -3,-11.8 -5.9,-10.6Z" fill="#FBF8F2" stroke="#2E3A3E" stroke-opacity=".4" stroke-width=".6"/>
-    <path d="M3.4,-13.6 l2.6,-1.4 l.4,2.2z" fill="#FBF8F2" stroke="#2E3A3E" stroke-opacity=".4" stroke-width=".5"/>
+    <path d="M-5.2,-11 C-5.8,-16 -3.4,-19.9 0,-19.9 C3.4,-19.9 5.8,-16 5.2,-11Z" fill="#E4D5B5" stroke="#2E3A3E" stroke-opacity=".4" stroke-width=".6"/>
+    <path d="M-8,-10.2 C-6.2,-12.8 6.2,-12.8 8,-10.2 C6.6,-8.6 3,-9.6 0,-9.4 C-3,-9.6 -6.6,-8.6 -8,-10.2Z" fill="#D8C7A2" stroke="#2E3A3E" stroke-opacity=".4" stroke-width=".6"/>
     ${eyes}<path d="M-1.3,-3.9 q1.3,1.1 2.6,0" stroke="#2E3A3E" stroke-width=".85" fill="none" stroke-linecap="round"/>
     <ellipse cx="-4.6" cy="-4" rx="1.3" ry=".8" fill="#EE8F8F" opacity=".7"/><ellipse cx="4.6" cy="-4" rx="1.3" ry=".8" fill="#EE8F8F" opacity=".7"/>`;
 }
@@ -713,7 +740,12 @@ const FURNISH = {
     g += box(ox + T, oy + 1.2, 0, 2.6, 6.8, 1.0, "#B27C52", { top: "#CC9768" });
     g += box(ox + T, oy + 1.2, 1.0, 1.25, 6.8, 1.0, "#BC865A", { top: "#D8A473" });
     g += cyl(ox + 5.2, oy + 1.5, 0, .45, .65, "#9A6A44", { top: "#7A9DAA" });
-    g += box(ox + 6.6, oy + .7, 0, 1.8, 1.6, 1.5, "#544B45", { top: "#433B36" });
+    // A stove clad in glazed tile, like the big one at Archimedes Banya, with venik drying on the wall.
+    [[2.6, -8], [3.5, 6], [4.4, -3], [5.3, 9]].forEach(([y, t]) => g += hungHat(ox + T + .02, oy + y, 2.75, t));
+    [3.9, 4.55, 5.2, 5.85].forEach((x, i) => g += venik(ox + x, oy + T + .02, 2.95, ["#8FAA62", "#6E8B4A", "#93ADA2", "#4E6B57"][i]));
+    g += box(ox + 6.6, oy + .7, 0, 1.8, 1.6, 1.5, "#ECE5D4", { top: "#433B36", hatch: .12 });
+    [[6.85, .3], [8.15, .3], [6.85, 1.15], [7.5, 1.15], [8.15, 1.15]].forEach(([x, z]) => g += tile(ox + x, oy + 2.31, z));
+    [[1.0, .3], [1.5, .75], [2.0, .3], [1.0, 1.15], [2.0, 1.15]].forEach(([y, z]) => g += tile(ox + 8.41, oy + y, z));
     { const [a, b] = P(ox + 7.5, oy + 2.3, .6); g += `<rect class="ember" x="${f1(a - 6)}" y="${f1(b - 6)}" width="12" height="7" rx="2" fill="#E3864F"/>`; }
     [[7.0,1.1],[7.6,1.3],[8.1,1.0],[7.3,1.8],[7.9,1.8]].forEach(([x, y]) => g += dot(ox + x, oy + y, 1.6, 3, "#8E8B85"));
     g += steam(ox + 7.5, oy + 1.4, 1.9, 4);
@@ -907,8 +939,26 @@ function skyLayer(){
       : `<circle class="twinkle" style="animation-delay:${(-rnd() * 4).toFixed(1)}s" cx="${f1(x)}" cy="${f1(y)}" r="${f1(r)}" fill="#F6EFD9"/>`;
   }
   g += `<g style="opacity:var(--stars);transition:opacity 1.2s">${stars}</g>`;
+  g += bayLayer();
   [[-430, -40, 70], [120, -110, 54], [420, 30, 60]].forEach(([x, y, r], i) =>
     g += `<g class="drift" style="animation-delay:${-i * 15}s" opacity=".8"><ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r * .22}" fill="#fff" opacity=".55"/><ellipse cx="${x + r * .3}" cy="${y - r * .12}" rx="${r * .45}" ry="${r * .2}" fill="#fff" opacity=".55"/></g>`);
+  return g;
+}
+// Far off behind the clearing, the Bay: the city skyline on one side, the old shipyard's
+// gantry crane on the other, the way they look from the roof at Archimedes Banya.
+function bayLayer(){
+  let g = `<defs><linearGradient id="bayfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9DB6C0" stop-opacity=".38"/><stop offset="1" stop-color="#9DB6C0" stop-opacity="0"/></linearGradient></defs>`;
+  g += `<rect x="-1000" y="96" width="2000" height="80" fill="url(#bayfade)"/>`;
+  let city = ""; SEED = 9;
+  for (let x = -540; x < -340; x += 8 + rnd() * 10){
+    const h = 6 + rnd() * rnd() * 40, w = 5 + rnd() * 8;
+    city += `<rect x="${f1(x)}" y="${f1(96 - h)}" width="${f1(w)}" height="${f1(h)}"/>`;
+  }
+  city += `<path d="M-447,96 L-442,38 L-437,96Z"/>`;   // the pyramid
+  g += `<g fill="#8D9FA8" opacity=".38">${city}</g>`;
+  g += `<g stroke="#6F8089" stroke-opacity=".5" fill="none" stroke-width="2.2" stroke-linejoin="round">
+    <path d="M412,96 L420,26 M452,96 L444,26 M416,62 H448 M392,26 H486 M392,26 V20 H486 V26"/>
+    <path d="M420,26 L432,12 L444,26" stroke-width="1.4"/></g>`;
   return g;
 }
 // The clearing: a slab of meadow and earth the bathhouse sits on, with birch and pine around.
@@ -1155,7 +1205,7 @@ function renderMenu(){
       <div class="meta"><span>with ${esc(st.attendant)}</span>${st.treatments.slice(0, 3).map(t => `<code>${esc(t)}</code>`).join("")}${st.treatments.length > 3 ? `<span>+${st.treatments.length - 3} more</span>` : ""}${n ? `<span class="busy">● ${n} in session</span>` : ""}</div>
     </button>`;
   }).join("");
-  $("#menu").querySelectorAll(".rit").forEach(b => b.addEventListener("click", () => { selectRoom(Number(b.dataset.i)); $("#stage").scrollIntoView({ behavior: "smooth", block: "center" }); }));
+  $("#menu").querySelectorAll(".rit").forEach(b => b.addEventListener("click", () => { selectRoom(Number(b.dataset.i)); focusRoom(Number(b.dataset.i)); $("#stage").scrollIntoView({ behavior: "smooth", block: "center" }); }));
 }
 
 function selectRoom(i){
@@ -1195,7 +1245,10 @@ async function loadTranscript(sid){
 }
 function closeDrawer(){ $("#scrim").classList.remove("show"); $("#drawer").classList.remove("show"); }
 $("#scrim").addEventListener("click", closeDrawer);
-window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+window.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if ($("#drawer").classList.contains("show")) closeDrawer(); else if (focused !== null) unfocus();
+});
 
 /* --- scene interaction: select rooms, open guests, pan & zoom --- */
 const cam = { s: 1, x: 0, y: 0 };
@@ -1213,7 +1266,7 @@ const fitView = () => scene.setAttribute("viewBox", stage.clientWidth < 980 ? "-
 stage.addEventListener("pointerdown", e => {
   if (e.target.closest(".zoom, .lightbar, .card")) return;
   if (e.pointerType === "touch" && cam.s <= 1) return;
-  drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; dragged = false;
+  drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; dragged = false; flight++;
 });
 window.addEventListener("pointermove", e => {
   if (!drag) return;
@@ -1228,17 +1281,58 @@ window.addEventListener("pointercancel", endDrag);
 scene.addEventListener("click", e => {
   if (dragged){ dragged = false; return; }
   const guest = e.target.closest(".guest"); if (guest){ openGuest(guest.dataset.sid); return; }
-  const hit = e.target.closest(".tag, .roomg"); if (hit) selectRoom(Number(hit.dataset.i));
+  const hit = e.target.closest(".tag, .roomg");
+  if (!hit){ if (focused !== null) unfocus(); return; }
+  const i = Number(hit.dataset.i);
+  selectRoom(i);
+  focused === i ? unfocus() : focusRoom(i);
 });
+
+// Clicking a room flies the camera in until that room is as big as the whole bathhouse was.
+let focused = null, flight = 0;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+// The screen box of a block of the world: its footprint from the floor up to the wall tops.
+function worldBox(x0, y0, w, d, z0, z1){
+  const pts = [];
+  for (const x of [x0, x0 + w]) for (const y of [y0, y0 + d]) for (const z of [z0, z1]) pts.push(P(x, y, z));
+  const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+  const [l, r, t, b] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  return { cx: (l + r) / 2, cy: (t + b) / 2, w: r - l, h: b - t };
+}
+function flyTo(to){
+  const from = { ...cam }, t0 = performance.now(), ms = reduceMotion.matches ? 0 : 700, id = ++flight;
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const step = now => {
+    if (id !== flight) return;
+    const t = ms ? Math.min(1, (now - t0) / ms) : 1, k = ease(t);
+    // Interpolate the scale in log space so the zoom feels even all the way in.
+    cam.s = Math.exp(Math.log(from.s) + (Math.log(to.s) - Math.log(from.s)) * k);
+    cam.x = from.x + (to.x - from.x) * k; cam.y = from.y + (to.y - from.y) * k;
+    applyCam();
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function focusRoom(i){
+  const R = ROOMS[i], house = worldBox(0, 0, S * 3, S * 3, 0, H);
+  const room = R.cabin ? worldBox(R.x0 - .7, R.y0 - .7, R.w + 1.4, R.d + 1.6, -1.3, 3.2) : worldBox(R.ox, R.oy, S, S, 0, H);
+  const s = Math.min(house.w / room.w, house.h / room.h, 6);
+  focused = i; stage.classList.add("focused");
+  flyTo({ s, x: house.cx - s * room.cx - CX * (1 - s), y: house.cy - s * room.cy - CY * (1 - s) });
+}
+function unfocus(){
+  focused = null; stage.classList.remove("focused");
+  flyTo({ s: 1, x: 0, y: 0 });
+}
 scene.addEventListener("keydown", e => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const guest = e.target.closest(".guest"), tag = e.target.closest(".tag");
-  if (guest){ e.preventDefault(); openGuest(guest.dataset.sid); } else if (tag){ e.preventDefault(); selectRoom(Number(tag.dataset.i)); }
+  if (guest){ e.preventDefault(); openGuest(guest.dataset.sid); } else if (tag){ e.preventDefault(); selectRoom(Number(tag.dataset.i)); focusRoom(Number(tag.dataset.i)); }
 });
-const zoom = d => { cam.s = Math.min(2.8, Math.max(.7, cam.s * d)); applyCam(); };
+const zoom = d => { flight++; cam.s = Math.min(6, Math.max(.7, cam.s * d)); applyCam(); };
 $("#zoom-in").addEventListener("click", () => zoom(1.2));
 $("#zoom-out").addEventListener("click", () => zoom(1 / 1.2));
-$("#zoom-reset").addEventListener("click", () => { cam.s = 1; cam.x = 0; cam.y = 0; applyCam(); });
+$("#zoom-reset").addEventListener("click", unfocus);
 function setStill(still){
   document.body.classList.toggle("still", still);
   try { still ? scene.pauseAnimations() : scene.unpauseAnimations(); } catch (_) {}
