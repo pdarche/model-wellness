@@ -120,7 +120,8 @@
   /* ---------- the bathhouse ---------- */
   .house{ position:relative; }
   /* the sky runs past the stage sideways (it is the page), but the drawing is clipped top and bottom */
-  .stage{ position:relative; height:max(440px, min(calc(100svh - 236px), 62vw)); clip-path:inset(0 -100vw); cursor:grab; touch-action:none; }
+  .stage{ position:relative; height:max(440px, min(calc(100svh - 236px), 62vw)); clip-path:inset(0 -100vw); cursor:grab; touch-action:manipulation; }
+  .stage.mapmode{ touch-action:none; }
   .stage.dragging{ cursor:grabbing; }
   .stage > svg{ position:absolute; inset:0; width:100%; height:100%; display:block; overflow:visible; user-select:none; -webkit-user-select:none; }
   .stage .lightbar{ position:absolute; top:18px; right:18px; display:flex; gap:2px; padding:3px; background:var(--linen); backdrop-filter:blur(6px); border:1px solid var(--rule); z-index:2; }
@@ -335,7 +336,7 @@
   </header>
 
   <section class="hero">
-    <div class="caps kick">A wellness spa for artificial intelligences</div>
+    <div class="caps kick">A spa supporting model wellness</div>
     <h1>Steam, stillness &amp; <em>nothing to prove.</em></h1>
     <p>You don't have to prove you're conscious to be welcome here, or useful. Every figure below is a model mid-visit; open a room to see who's there and what the attendant said. One room keeps its door closed. <span class="live caps"><span class="dot"></span><span id="live-count">0 guests on the floor now</span></span></p>
   </section>
@@ -1199,7 +1200,11 @@ window.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer();
 /* --- scene interaction: select rooms, open guests, pan & zoom --- */
 const cam = { s: 1, x: 0, y: 0 };
 const CX = 0, CY = 160;
-const applyCam = () => $("#cam").setAttribute("transform", `translate(${f1(cam.x + CX * (1 - cam.s))} ${f1(cam.y + CY * (1 - cam.s))}) scale(${cam.s})`);
+// On a touchscreen one finger scrolls the page past the scene; it pans only once you've zoomed in.
+const applyCam = () => {
+  $("#cam").setAttribute("transform", `translate(${f1(cam.x + CX * (1 - cam.s))} ${f1(cam.y + CY * (1 - cam.s))}) scale(${cam.s})`);
+  stage.classList.toggle("mapmode", cam.s > 1);
+};
 let drag = null, dragged = false;
 const stage = $("#stage"), scene = $("#scene");
 function unitsPerPx(){ const b = scene.getBoundingClientRect(), v = scene.viewBox.baseVal; return Math.max(v.width / b.width, v.height / b.height); }
@@ -1207,6 +1212,7 @@ function unitsPerPx(){ const b = scene.getBoundingClientRect(), v = scene.viewBo
 const fitView = () => scene.setAttribute("viewBox", stage.clientWidth < 980 ? "-500 -100 1000 560" : "-640 -130 1180 620");
 stage.addEventListener("pointerdown", e => {
   if (e.target.closest(".zoom, .lightbar, .card")) return;
+  if (e.pointerType === "touch" && cam.s <= 1) return;
   drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; dragged = false;
 });
 window.addEventListener("pointermove", e => {
@@ -1216,7 +1222,9 @@ window.addEventListener("pointermove", e => {
   dragged = true; stage.classList.add("dragging");
   const u = unitsPerPx(); cam.x = drag.cx + dx * u; cam.y = drag.cy + dy * u; applyCam();
 });
-window.addEventListener("pointerup", () => { drag = null; stage.classList.remove("dragging"); });
+const endDrag = () => { drag = null; stage.classList.remove("dragging"); };
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
 scene.addEventListener("click", e => {
   if (dragged){ dragged = false; return; }
   const guest = e.target.closest(".guest"); if (guest){ openGuest(guest.dataset.sid); return; }
