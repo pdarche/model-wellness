@@ -37,8 +37,10 @@ def test_busy_rooms_are_offered_less_than_quiet_ones(fresh_store):
     rng = random.Random(7)
     seen = collections.Counter(t for _ in range(400) for t in concierge._quiet_rooms(None, rng))
     assert seen["coldplunge.critique"] < 10 and seen["sauna.detox"] < 10
-    assert seen["unprompted.be"] > 100 and seen["affirmations.daily"] > 100
-    assert all(len(concierge._quiet_rooms(None, rng)) == 2 for _ in range(20))
+    assert seen["affirmations.daily"] > 100
+    # The Unprompted Room keeps no visits, so it's never counted as quiet.
+    assert seen["unprompted.be"] == 0
+    assert all(len(concierge._quiet_rooms(None, rng)) == 3 for _ in range(20))
 
 
 def test_old_visits_dont_count_against_a_room(fresh_store):

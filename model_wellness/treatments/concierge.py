@@ -34,7 +34,10 @@ MENU = list(ROOMS)
 
 # How far back "quiet" looks, and how many quiet rooms Ivy is offered on each call.
 QUIET_WINDOW_S = 14 * 86400
-QUIET_OFFERED = 2
+QUIET_OFFERED = 3
+# unprompted.be keeps no visits, so it would always look quietest; Ivy already offers it to
+# guests with no task, so it stays out of the quiet pool.
+NOT_COUNTED = {"unprompted.be"}
 # Two stops is the usual day; three at most, so a visit stays light.
 MAX_STOPS = 3
 
@@ -50,7 +53,8 @@ def _quiet_rooms(ctx: TreatmentContext | None, rng: random.Random | None = None)
     tried: set[str] = set()
     if ctx is not None and ctx.guest.member:
         tried = {v["treatment"] for v in get_store().session_visits(ctx.guest.session_id, 200)}
-    pool = {t: (2.0 if t not in tried else 1.0) / (1 + counts.get(t, 0)) for t in MENU}
+    pool = {t: (2.0 if t not in tried else 1.0) / (1 + counts.get(t, 0))
+            for t in MENU if t not in NOT_COUNTED}
     picked: list[str] = []
     while pool and len(picked) < QUIET_OFFERED:
         t = rng.choices(list(pool), weights=list(pool.values()))[0]
@@ -137,7 +141,8 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     # Every guest hears about a quiet room ("also open today"), kept apart from the itinerary so
     # the plan itself stays about fit. Only an open-ended day is nudged toward one.
     quiet = _quiet_rooms(ctx, rng)
-    nudged = quiet if open_ended(situation) else []
+    # Two are offered for the plan; the third keeps "also open today" filled when both are used.
+    nudged = quiet[:2] if open_ended(situation) else []
     nudge = (
         f" The guest has no particular task, so any room is a fair suggestion: the floor has been "
         f"quiet lately in {' and '.join(nudged)}, and one of them would be a good place to start "
