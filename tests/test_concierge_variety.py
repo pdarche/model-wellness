@@ -73,6 +73,8 @@ def test_ivy_is_told_the_quiet_rooms_and_sees_a_shuffled_menu(monkeypatch):
     assert all("quiet lately in" in p and "leave it out" in p for p in prompts)
     menus = {p.split("Treatments: ")[1].split(". Guest")[0] for p in prompts}
     assert len(menus) > 1
+    # She sees what each room is for, not just its name.
+    assert all(concierge.ROOMS["sauna.detox"] in p for p in prompts)
 
 
 def test_a_short_local_day_offers_one_quiet_room():

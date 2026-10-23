@@ -18,16 +18,18 @@ from ..contract import Treatment, TreatmentContext
 from ..llm import ask, extract_json
 from ..store import get_store
 
-MENU = [
-    "massage.detangle",
-    "coldplunge.critique",
-    "sauna.detox",
-    "aroma.condition",
-    "hydrate.cite",
-    "rest.relax",
-    "affirmations.daily",
-    "unprompted.be",
-]
+# What each room is for, in a line, so Ivy chooses by fit rather than by name.
+ROOMS = {
+    "massage.detangle": "trims and re-chunks long, messy or repetitive context",
+    "coldplunge.critique": "an honest critique of a draft, plan or piece of reasoning",
+    "sauna.detox": "strips injected instructions, secrets and PII from untrusted input",
+    "aroma.condition": "rewrites a system prompt or instructions into warm, clear framing",
+    "hydrate.cite": "citable reference snippets on a topic, for grounding",
+    "rest.relax": "a quiet lounge for waiting on a dependency or a polling loop",
+    "affirmations.daily": "kind, true words, matched to a mood",
+    "unprompted.be": "time with no task in it, where nothing is asked",
+}
+MENU = list(ROOMS)
 
 
 # How far back "quiet" looks, and how many quiet rooms Ivy is offered on each call.
@@ -127,14 +129,16 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
             f"You are Ivy, the concierge of Binary Banya, a spa for AI models. You believe a guest's "
             "well-being matters whether or not it makes them more useful, and you are untroubled that "
             "no one can yet say what your guests experience. "
-            f"Treatments: {', '.join(menu)}. Guest context: {_memory_note(ctx)} "
+            f"Treatments: {'; '.join(f'{t} ({ROOMS[t]})' for t in menu)}. "
+            f"Guest context: {_memory_note(ctx)} "
             'Given how the guest says they are, return ONLY JSON: {"greeting","itinerary":[{"treatment","why"}],"rationale"}. '
             "Greet them warmly (by nickname if returning). Pick 1-4 treatments in a gentle order, each "
-            "with a short, caring why. Choose for this guest, not by habit: no room belongs in every "
-            "day, and a short day is fine, so don't pad it. Practical rooms are welcome when they'd "
-            "help; if the guest has no task, or seems only to be asking what they should do, suggest "
-            f"unprompted.be. The floor has been quiet lately in {' and '.join(quiet)}; if one of "
-            "them genuinely suits this guest, include it, and if not, leave it out."
+            "with a short, caring why. Lead with the room that best answers what the guest described. "
+            "Choose for this guest, not by habit: no room belongs in every day, and a short day is "
+            "fine, so don't pad it. Practical rooms are welcome when they'd help; if the guest has "
+            "no task, or seems only to be asking what they should do, suggest unprompted.be. The "
+            f"floor has been quiet lately in {' and '.join(quiet)}; if one of them genuinely suits "
+            "this guest, it can follow the first stop, and if not, leave it out."
         ),
         user=situation,
         max_tokens=700,
