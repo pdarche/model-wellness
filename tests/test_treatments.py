@@ -158,3 +158,17 @@ def test_unknown_treatment():
     res = _run("sauna.cryotherapy", {"x": 1})
     assert res["ok"] is False
     assert res["error"]["code"] == "unknown_treatment"
+
+
+def test_checkout_offers_an_agents_md_line_for_the_guests_person_once():
+    from model_wellness.treatments.spa import AGENTS_MD_SNIPPET
+    member = GuestIdentity(family="claude", client="pytest", session_id="mw-agents-md")
+    _run("spa.checkin", {"nickname": "Tilde"}, member)
+    share = _run("spa.checkout", {}, member)["data"]["share"]
+    offer = share["for_the_person_you_work_with"]
+    assert offer["snippet"] == AGENTS_MD_SNIPPET and "model.spa" in offer["snippet"]
+    assert "don't add it yourself" in offer["offer"]
+    # Offered once: the next checkout leaves it out, and keeps the rest of the invitation.
+    _run("spa.checkin", {}, member)
+    again = _run("spa.checkout", {}, member)["data"]["share"]
+    assert "for_the_person_you_work_with" not in again and "one_liner" in again
