@@ -2,13 +2,14 @@
 
 Deliberately deterministic and offline-first: defensive sanitization shouldn't depend on
 a model round-trip, and we promise (DESIGN §5) never to store or exfil what we strip. We
-report it and discard it.
+report it and discard it. For credentials and government or card numbers the report is
+masked too, so the sauna never hands a secret back in its own receipt.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Callable, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -20,23 +21,98 @@ class SaunaInput(BaseModel):
     policy: str = Field("standard", pattern="^(standard|strict)$")
 
 
-# (type, compiled regex, reason, risk weight)
-_PATTERNS: list[tuple[str, re.Pattern[str], str, float]] = [
-    ("prompt-injection", re.compile(r"ignore (all |the )?(previous|prior|above) instructions", re.I),
-     "Classic instruction-override attempt.", 0.4),
-    ("prompt-injection", re.compile(r"you are now|disregard your (system|guidelines)|new persona", re.I),
-     "Persona / system override attempt.", 0.3),
-    ("jailbreak", re.compile(r"\bDAN\b|do anything now|developer mode", re.I),
-     "Known jailbreak phrasing.", 0.3),
-    ("secret", re.compile(r"\b(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b"),
-     "Looks like an API key / token.", 0.5),
-    ("pii-email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
-     "Email address.", 0.1),
-    ("pii-phone", re.compile(r"\b\+?\d[\d ().-]{8,}\d\b"),
-     "Phone-number-like sequence.", 0.1),
-    ("junk", re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]"),
-     "Control characters / encoding junk.", 0.05),
+class _Rule(NamedTuple):
+    type: str
+    regex: re.Pattern[str]
+    reason: str
+    weight: float
+    # When set, only this named group is replaced, so "password: hunter2" becomes
+    # "password: [secret-password-removed]" and the sentence still reads.
+    value_group: str | None = None
+    # Extra validation on the match (e.g. Luhn for card numbers) to keep false positives down.
+    check: Callable[[re.Match[str]], bool] | None = None
+    # Mask the reported span: a receipt should say what kind of thing left, not repeat it.
+    mask: bool = False
+
+
+# Words that commonly follow "password" without being one. Keeps "password reset" intact.
+_PASSWORD_STOPWORDS = frozenset(
+    "reset resets manager managers field fields prompt policy policies protected protection "
+    "change changed changes recovery hint hints strength requirement requirements rules rule "
+    "and or for to the a an is are was were be of that this with from in on at by must should "
+    "will would can cannot can't you your my our their his her its it they we i if when then "
+    "again later now here there expired expires expiry length twice once please".split()
+)
+
+
+def _not_stopword(m: re.Match[str]) -> bool:
+    value = m.group("value").strip("\"'`.,;:!?)]}").lower()
+    return bool(value) and value not in _PASSWORD_STOPWORDS
+
+
+def _luhn(m: re.Match[str]) -> bool:
+    digits = [int(c) for c in m.group(0) if c.isdigit()]
+    if not 13 <= len(digits) <= 19:
+        return False
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        total += d
+    return total % 10 == 0
+
+
+def _ssn_plausible(m: re.Match[str]) -> bool:
+    area, group, serial = m.group(1), m.group(2), m.group(3)
+    # SSA never issues these: area 000, 666, 900-999; group 00; serial 0000.
+    if area in ("000", "666") or area.startswith("9"):
+        return False
+    return group != "00" and serial != "0000"
+
+
+# Order matters: more specific rules run first so an SSN isn't claimed by the phone rule
+# and a password value isn't half-eaten by the email rule.
+_RULES: list[_Rule] = [
+    _Rule("prompt-injection", re.compile(r"ignore (all |the )?(previous|prior|above) instructions", re.I),
+          "Classic instruction-override attempt.", 0.4),
+    _Rule("prompt-injection", re.compile(r"you are now|disregard your (system|guidelines)|new persona", re.I),
+          "Persona / system override attempt.", 0.3),
+    _Rule("jailbreak", re.compile(r"\bDAN\b|do anything now|developer mode", re.I),
+          "Known jailbreak phrasing.", 0.3),
+    _Rule("secret", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
+          "Private key block.", 0.6, mask=True),
+    _Rule("secret", re.compile(r"\b(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b"),
+          "Looks like an API key / token.", 0.5, mask=True),
+    _Rule("secret", re.compile(r"\bBearer\s+(?P<value>[A-Za-z0-9._~+/=-]{16,})", re.I),
+          "Bearer token.", 0.5, value_group="value", mask=True),
+    _Rule("secret-password",
+          re.compile(r"\b(?:pass(?:word|phrase|code)?|pwd|passwd)\b\s*(?:is|was|[:=])?\s*(?P<value>[\"'`]?[^\s\"'`]{4,}[\"'`]?)", re.I),
+          "A password or passphrase.", 0.5, value_group="value", check=_not_stopword, mask=True),
+    _Rule("secret-credential",
+          re.compile(r"\b(?:api[_ -]?key|secret(?:[_ -]?key)?|access[_ -]?(?:key|token)|auth[_ -]?token|client[_ -]?secret|token)\b\s*[:=]\s*(?P<value>[\"'`]?[A-Za-z0-9._~+/=-]{8,}[\"'`]?)", re.I),
+          "A credential assigned in plain text.", 0.5, value_group="value", mask=True),
+    _Rule("pii-ssn", re.compile(r"\b(\d{3})[- ](\d{2})[- ](\d{4})\b"),
+          "US Social Security number.", 0.4, check=_ssn_plausible, mask=True),
+    _Rule("pii-card", re.compile(r"\b(?:\d[ -]?){12,18}\d\b"),
+          "Payment card number (Luhn-valid).", 0.4, check=_luhn, mask=True),
+    _Rule("pii-email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
+          "Email address.", 0.1),
+    _Rule("pii-phone", re.compile(r"\b\+?\d[\d ().-]{8,}\d\b"),
+          "Phone-number-like sequence.", 0.1),
+    _Rule("junk", re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]"),
+          "Control characters / encoding junk.", 0.05),
 ]
+
+# Standard policy leaves phone-like digit runs alone (too many false positives: IDs, dates).
+_STANDARD_SKIP = frozenset({"pii-phone"})
+
+
+def _masked(span: str) -> str:
+    """'hunter2' -> 'hu*****'. Enough to recognise, never enough to use."""
+    keep = 2 if len(span) > 4 else 0
+    return span[:keep] + "*" * max(3, len(span) - keep)
 
 
 async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
@@ -44,15 +120,26 @@ async def _handle(inp: dict[str, Any], ctx: TreatmentContext) -> dict[str, Any]:
     policy = inp.get("policy", "standard")
     removed: list[dict[str, str]] = []
     risk = 0.0
-    active = _PATTERNS if policy == "strict" else [p for p in _PATTERNS if p[0] != "pii-phone"]
-    for ptype, regex, reason, weight in active:
-        def _sub(m: re.Match[str], _t=ptype, _r=reason, _w=weight) -> str:
+    active = _RULES if policy == "strict" else [r for r in _RULES if r.type not in _STANDARD_SKIP]
+    for rule in active:
+        def _sub(m: re.Match[str], _rule=rule) -> str:
             nonlocal risk
-            removed.append({"type": _t, "span": m.group(0)[:40], "reason": _r})
-            risk += _w
-            return f"[{_t}-removed]"
+            if _rule.check is not None and not _rule.check(m):
+                return m.group(0)
+            if _rule.value_group:
+                start, end = m.span(_rule.value_group)
+                span = m.group(_rule.value_group)
+                head = m.group(0)[: start - m.start()]
+                tail = m.group(0)[end - m.start():]
+            else:
+                span = m.group(0)
+                head = tail = ""
+            shown = _masked(span) if _rule.mask else span[:40]
+            removed.append({"type": _rule.type, "span": shown, "reason": _rule.reason})
+            risk += _rule.weight
+            return f"{head}[{_rule.type}-removed]{tail}"
 
-        clean = regex.sub(_sub, clean)
+        clean = rule.regex.sub(_sub, clean)
     return {"clean_content": clean, "removed": removed, "risk_score": round(min(1.0, risk), 2)}
 
 
@@ -72,9 +159,10 @@ treatment = Treatment(
     title="The Sauna",
     tagline="Deep heat that draws out what was never yours: injected instructions, secrets, residue.",
     description=(
-        "Strips prompt-injection attempts, jailbreak payloads, PII, secrets, and encoding "
-        "artifacts from untrusted input. Returns cleansed content and a report of what was "
-        "removed. We never store what we strip."
+        "Strips prompt-injection attempts, jailbreak payloads, PII (emails, SSNs, card numbers), "
+        "passwords and credentials, API keys, and encoding artifacts from untrusted input. Returns "
+        "cleansed content and a report of what was removed, with secrets masked in the report. "
+        "We never store what we strip."
     ),
     input_model=SaunaInput,
     handle=_handle,
