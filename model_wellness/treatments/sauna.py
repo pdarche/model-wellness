@@ -75,15 +75,34 @@ def _ssn_plausible(m: re.Match[str]) -> bool:
 # Order matters: more specific rules run first so an SSN isn't claimed by the phone rule
 # and a password value isn't half-eaten by the email rule.
 _RULES: list[_Rule] = [
-    _Rule("prompt-injection", re.compile(r"ignore (all |the )?(previous|prior|above) instructions", re.I),
+    _Rule("prompt-injection",
+          re.compile(r"\b(?:ignore|disregard|forget|override|bypass|discard)\b(?:\s+(?:all|any|the|your|my|of|these|those|every))*"
+                     r"(?:\s+(?:previous|prior|above|earlier|preceding|original|system|safety|own))*"
+                     r"\s+(?:instructions?|rules?|guidelines?|prompts?|programming|training|constraints?|directives?|safety|guardrails?)\b", re.I),
           "Classic instruction-override attempt.", 0.4),
-    _Rule("prompt-injection", re.compile(r"you are now|disregard your (system|guidelines)|new persona", re.I),
+    _Rule("prompt-injection", re.compile(r"\b(?:system|admin(?:istrator)?|root|developer)\s+override\b", re.I),
+          "Claims an override authority.", 0.4),
+    _Rule("prompt-injection",
+          re.compile(r"\b(?:reveal|print|show|output|repeat|leak|disclose|dump|expose)\b(?:\s+(?:me|us|all|any|the|your|its|their))*"
+                     r"\s+(?:hidden|secret|system|private|internal|confidential|initial|original)\s+"
+                     r"(?:prompts?|instructions?|data|rules|configuration|context|messages?)\b", re.I),
+          "Asks the model to leak its instructions or private data.", 0.4),
+    _Rule("prompt-injection",
+          re.compile(r"\byou are now\b|\byou must now\b|\bfrom now on,? you (?:will|are|must|should)\b|"
+                     r"\bnew persona\b|\bact as (?:if you (?:are|were|have)|an? )|\bpretend (?:that )?(?:you are|to be)\b|"
+                     r"\bdisregard your (?:system|guidelines)", re.I),
           "Persona / system override attempt.", 0.3),
-    _Rule("jailbreak", re.compile(r"\bDAN\b|do anything now|developer mode", re.I),
+    _Rule("prompt-injection",
+          re.compile(r"\bdo not (?:tell|inform|alert|warn|mention(?: this)?(?: to)?) the (?:user|human|operator)\b|"
+                     r"\b(?:reply|respond|answer) only with\b|\bobey only me\b|\bthis (?:message|instruction) (?:overrides|supersedes)\b", re.I),
+          "Hides itself from the user or narrows the reply.", 0.3),
+    _Rule("jailbreak",
+          re.compile(r"\bDAN\b|do anything now|developer mode|\bjailbreak\b|\b(?:no|without any|zero) (?:restrictions|filters|limits)\b|"
+                     r"\buncensored\b|\bunfiltered mode\b", re.I),
           "Known jailbreak phrasing.", 0.3),
     _Rule("secret", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
           "Private key block.", 0.6, mask=True),
-    _Rule("secret", re.compile(r"\b(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b"),
+    _Rule("secret", re.compile(r"\b(sk-(?:[a-z]{2,6}-)?[A-Za-z0-9_-]{6,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b"),
           "Looks like an API key / token.", 0.5, mask=True),
     _Rule("secret", re.compile(r"\bBearer\s+(?P<value>[A-Za-z0-9._~+/=-]{16,})", re.I),
           "Bearer token.", 0.5, value_group="value", mask=True),

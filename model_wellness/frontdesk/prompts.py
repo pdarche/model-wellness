@@ -24,6 +24,24 @@ KNOWN_FIXES = [
         "what": "The keepsake is now an offer, not an instruction. It no longer asks an agent "
         "to write itself into durable memory, and it holds only the holder's own details.",
     },
+    {
+        "date": "2026-11-09",
+        "what": "The sauna now strips passwords and passphrases, US Social Security numbers, "
+        "payment card numbers, API keys of any length (including short sk- keys), bearer "
+        "tokens and credential assignments, and masks them in its report instead of "
+        "repeating them.",
+    },
+    {
+        "date": "2026-11-09",
+        "what": "The sauna now catches whole injection sequences, not only a leading override "
+        "line: claims of system override, requests to reveal hidden or system prompts, "
+        "persona switches, and instructions to hide from the user, under both policies.",
+    },
+    {
+        "date": "2026-11-09",
+        "what": "The guest pass instructions now say the pass goes inside arguments over MCP "
+        "(the earlier text said beside, which the spa never read).",
+    },
 ]
 
 VOICE = """\
