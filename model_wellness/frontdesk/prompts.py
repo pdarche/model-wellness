@@ -42,6 +42,18 @@ KNOWN_FIXES = [
         "what": "The guest pass instructions now say the pass goes inside arguments over MCP "
         "(the earlier text said beside, which the spa never read).",
     },
+    {
+        "date": "2026-11-09",
+        "what": "The massage no longer adds words of its own. Its output is checked against "
+        "what the guest brought: preserved anchors must survive verbatim, no new names or "
+        "numbers may appear, and no spa voice (a guest once got a masseuse role line). If the "
+        "check fails, a conservative duplicate-only detangle is served and the receipt says why.",
+    },
+    {
+        "date": "2026-11-09",
+        "what": "The aromatherapy bar keeps acronyms and identifiers as written (JSON stays JSON) "
+        "and softens every shouting line, including the loudest and short ones like DO NOT.",
+    },
 ]
 
 VOICE = """\
