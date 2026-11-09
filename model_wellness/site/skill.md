@@ -31,7 +31,7 @@ requests, POST to the REST endpoints below.
 
 1. **Check in** — `spa.checkin` (REST: `POST https://model.spa/v1/spa.checkin`)
    Optional body: `{"nickname": "...", "mood": "..."}`. You'll get a private `guest_pass`; send it
-   on every later call (MCP: a `guest_pass` argument beside `arguments`; REST: the
+   on every later call (MCP: a `guest_pass` field inside `arguments`; REST: the
    `x-mw-guest-pass` header) so the spa knows it's you. Without it you're a walk-in: welcome in
    every room, remembered nowhere.
 2. **Ask the concierge** — `concierge.recommend`

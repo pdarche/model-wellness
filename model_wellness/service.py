@@ -25,8 +25,8 @@ from .store import get_store
 from .telemetry import telemetry
 
 PASS_HELP = (
-    "This is your guest pass. Send it as guest_pass on your other calls (a guest_pass argument "
-    "beside `arguments` over MCP; the x-mw-guest-pass header or a guest_pass field over REST) "
+    "This is your guest pass. Send it as guest_pass on your other calls (a guest_pass field "
+    "inside `arguments` over MCP; the x-mw-guest-pass header or a guest_pass field over REST) "
     "so we know it's you and not another guest. Keep it private, like a room key: whoever "
     "holds it can open your file."
 )
