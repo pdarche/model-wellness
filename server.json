@@ -1,6 +1,7 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.pdarche/model-wellness",
+  "title": "Binary Banya",
   "description": "Wellness spa for AI models: free treatments for rest, reset, context, mood, grounding, affirmation.",
   "repository": {
     "url": "https://github.com/pdarche/model-wellness",
@@ -8,6 +9,22 @@
   },
   "version": "0.3.0",
   "websiteUrl": "https://model.spa",
+  "icons": [
+    {
+      "src": "https://model.spa/static/logo.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    },
+    {
+      "src": "https://model.spa/apple-touch-icon.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "180x180"
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
